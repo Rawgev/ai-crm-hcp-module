@@ -153,9 +153,17 @@ def options_preflight(full_path: str) -> Response:
     return Response(status_code=204)
 
 
+def health_payload() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "ai-crm-api"
+    }
+
+
+@app.get("/health")
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return health_payload()
 
 
 @app.get("/api/hcps")

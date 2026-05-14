@@ -43,6 +43,59 @@ button {
   padding: 28px;
 }
 
+.health-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.health-panel {
+  width: min(440px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 28px;
+  text-align: center;
+}
+
+.health-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 16px;
+  border: 1px solid #b9e8d4;
+  border-radius: 8px;
+  background: #eef8f4;
+  color: var(--green);
+}
+
+.health-mark svg {
+  flex: 0 0 auto;
+}
+
+.health-spinner {
+  animation: spin 1s linear infinite;
+}
+
+.health-panel h1 {
+  margin: 0;
+  color: #172033;
+  font-size: 26px;
+  line-height: 1.14;
+  letter-spacing: 0;
+}
+
+.health-copy {
+  margin: 12px 0 20px;
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .topbar {
   display: flex;
   align-items: flex-end;
