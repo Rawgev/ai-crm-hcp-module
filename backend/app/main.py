@@ -40,8 +40,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://ai-crm-hcp-module.vercel.app",
         "http://localhost:5173",
-        "https://ai-crm-hcp-module.vercel.app/",
+        
     ],
     allow_credentials=True,
     allow_methods=["*"],
