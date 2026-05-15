@@ -5,49 +5,30 @@ import { AssistantPanel } from "./features/assistant/AssistantPanel.jsx";
 import { api } from "./lib/api.js";
 
 export function App() {
-  const [health, setHealth] = useState({
-    status: "checking",
-    error: null
-  });
-
-  const checkHealth = useCallback(async () => {
-    setHealth({ status: "checking", error: null });
-    try {
-      await api.get("/health", { timeout: 5000 });
-      setHealth({ status: "ready", error: null });
-    } catch (error) {
-      setHealth({
-        status: "error",
-        error: error.normalizedMessage || "Backend service temporarily unavailable"
-      });
-    }
-  }, []);
+const [isServerReady, setIsServerReady] = useState(false);
 
   useEffect(() => {
-    checkHealth();
-  }, [checkHealth]);
+    const checkHealth = async () => {
+      try {
+        // Bina timeout ke call karo taaki cold start handle ho sake
+        await api.get('/health', { timeout: 0 }); 
+        setIsServerReady(true);
+      } catch (err) {
+        console.error("Server booting up...", err);
+        // Error handling: server shayad down hai ya time le raha hai
+      }
+    };
 
-  if (health.status !== "ready") {
+    checkHealth();
+  }, []);
+
+  if (!isServerReady) {
     return (
-      <main className="health-screen" aria-live="polite">
-        <section className="health-panel">
-          <div className="health-mark" aria-hidden="true">
-            {health.status === "checking" ? <Loader2 className="health-spinner" size={28} /> : <Activity size={28} />}
-          </div>
-          <p className="eyebrow">AI-first CRM</p>
-          <h1>{health.status === "checking" ? "Connecting to CRM services" : "CRM service unavailable"}</h1>
-          <p className="health-copy">
-            {health.status === "checking"
-              ? "Checking backend health before loading the interaction workspace."
-              : health.error}
-          </p>
-          {health.status === "error" && (
-            <button className="primary-button" type="button" onClick={checkHealth}>
-              <RotateCcw size={17} /> Retry
-            </button>
-          )}
-        </section>
-      </main>
+      <div style={{ textAlign: 'center', marginTop: '20%' }}>
+        <h1>🚀 Server is waking up...</h1>
+        <p>This might take 30-60 seconds on the free tier. Please wait.</p>
+        <div className="spinner"></div> {/* Chota sa loading spinner */}
+      </div>
     );
   }
 
