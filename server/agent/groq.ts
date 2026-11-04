@@ -92,7 +92,7 @@ function sleep(ms: number) {
 function isRateLimitOrTransient(error: any): boolean {
   if (!error) return false;
   const status = error?.status || error?.statusCode;
-  if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
+  if (status === 429 || status === 404 || status === 500 || status === 502 || status === 503 || status === 504) {
     return true;
   }
   const msg = String(error?.message || "").toLowerCase();
@@ -102,7 +102,9 @@ function isRateLimitOrTransient(error: any): boolean {
     msg.includes("rate_limit_exceeded") ||
     msg.includes("timeout") ||
     msg.includes("econnreset") ||
-    msg.includes("fetch failed")
+    msg.includes("fetch failed") ||
+    msg.includes("model_not_found") ||
+    msg.includes("does not exist")
   );
 }
 
@@ -122,8 +124,8 @@ export async function invokeGroqWithFallbackLadder(
   }
 ): Promise<FallbackLadderResult> {
   const client = getGroqClient();
-  const primaryModel = options?.primaryModel || config.GROQ_MODEL || "llama-3.1-8b-instant";
-  const secondaryModel = options?.secondaryModel || config.GROQ_CONTEXT_MODEL || "llama-3.3-70b-versatile";
+  const primaryModel = options?.primaryModel || config.GROQ_MODEL || "openai/gpt-oss-20b";
+  const secondaryModel = options?.secondaryModel || config.GROQ_CONTEXT_MODEL || "openai/gpt-oss-120b";
   const timeoutSeconds = options?.timeoutSeconds || config.AI_REQUEST_TIMEOUT_SECONDS || 12;
 
   if (!client) {

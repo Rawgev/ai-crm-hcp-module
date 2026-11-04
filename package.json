@@ -5,7 +5,8 @@
   "description": "Pharmaxora — Enterprise Next.js Full-Stack AI-first CRM HCP Module with LangGraph.js and PostgreSQL",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
