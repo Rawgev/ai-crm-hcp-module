@@ -1,148 +1,275 @@
-# AI-First CRM HCP Module
+# AI-First CRM HCP Module — Next.js Enterprise Full Stack
 
-This project implements an **AI-first Log HCP Interaction module** for a life-sciences CRM. It helps a field representative capture Healthcare Professional interactions quickly while keeping the final CRM record reviewable and compliance-aware.
+An enterprise-grade, production-oriented **AI-First Healthcare Professional (HCP) Interaction Module** for life sciences CRM, migrated from Python (FastAPI + SQLAlchemy + LangGraph) to a unified **Next.js (App Router) + TypeScript + LangGraph.js + PostgreSQL** architecture.
 
-The screen supports two capture modes:
+The application allows field representatives to log, review, enrich, and audit HCP interactions quickly and compliantly, using both structured manual entry and conversational AI assistance.
 
-- A structured React form for field representatives who need fast, auditable entry.
-- A conversational AI assistant that drafts, edits, and enriches the same interaction record through a LangGraph agent.
+---
 
-The stack follows the brief: React, Redux Toolkit, FastAPI, LangGraph, Groq LLMs, and a SQL database. Local development defaults to SQLite for quick setup, while SQLAlchemy also supports Postgres or MySQL-compatible deployment with a suitable `DATABASE_URL`.
+## 1. Key Highlights & Architectural Advantages
 
-## Project Summary
+- **Unified Next.js Full Stack**: Single runtime powered by Node.js and TypeScript. No separate FastAPI or Express backend.
+- **Enterprise Layered Architecture**:
+  - **Presentation Layer**: React 18, Next.js App Router, Tailwind CSS, Lucide icons, Redux Toolkit.
+  - **API Layer**: Route Handlers with Zod input validation, standard response structures, and centralized error handling.
+  - **Service Layer**: Decoupled domain business logic (`server/services/`).
+  - **AI Agent Layer**: StateGraph orchestration with `@langchain/langgraph`, Groq SDK LLM integration, timeout guards, and resilient fallbacks.
+  - **Data Layer**: PostgreSQL with Prisma ORM, migrations, and strict referential constraints.
+  - **Security Layer**: JWT-based session authentication with HttpOnly cookies, password hashing with bcrypt, role-based access guards (REP, MANAGER, COMPLIANCE_OFFICER, ADMIN).
+- **Human-in-the-Loop Principle**: The AI agent never persists records directly to the database. All AI-extracted fields are applied as a patch to the visible form draft, allowing the representative to inspect, edit, and approve before submission.
+- **Automated SQLite to PostgreSQL Migration**: Includes a migration utility (`scripts/migrate-sqlite-to-postgres.ts`) to import historical data from legacy SQLite databases without data loss.
 
-The module lets a rep record an HCP meeting, call, email, or virtual detail. The rep can manually enter details such as HCP name, interaction type, attendees, topics, materials, samples, sentiment, outcomes, and follow-up actions.
+---
 
-The AI assistant improves this workflow by turning natural-language notes into structured CRM fields. For example, a rep can type: "Met Dr. Menon, discussed Product X efficacy and safety. Positive response, wants Phase III data." The agent can populate the draft, infer sentiment, suggest approved materials, recommend next steps, and run compliance checks before the rep submits the record.
+## 2. System Architecture
 
-The rep stays in control: AI output is applied to the visible form draft, where it can be reviewed or edited before saving.
+```mermaid
+graph TD
+    subgraph Client ["Presentation Layer (Client)"]
+        UI[Next.js App Router Page]
+        Form[InteractionForm Component]
+        Assistant[AssistantPanel Component]
+        ReduxStore[Redux Toolkit Store<br/>(Draft, Messages, Tools)]
+    end
 
-## Architecture
+    subgraph API ["API Layer (Next.js Route Handlers)"]
+        HealthRoute["/api/health & /health"]
+        AuthRoute["/api/auth/*"]
+        HCPRoute["/api/hcps/*"]
+        InteractionRoute["/api/interactions/*"]
+        AgentChatRoute["/api/agent/chat"]
+        AgentToolRoute["/api/agent/tool"]
+        FollowUpRoute["/api/follow-ups/*"]
+        ComplianceRoute["/api/compliance/*"]
+        ZodValidator["Zod Validation Layer"]
+        JWTMiddleware["JWT Auth & Session Guard"]
+    end
 
-**Frontend**
+    subgraph Services ["Service Layer (Business Logic)"]
+        HCPService[HCP Service]
+        InteractionService[Interaction Service]
+        FollowUpService[Follow-Up Service]
+        ComplianceService[Compliance Service]
+        AuthService[Auth & User Service]
+    end
 
-- React + Vite UI using the Google Inter font.
-- Redux Toolkit stores the active interaction draft, save status, assistant messages, and recent tool activity.
-- The screen includes HCP selection, interaction metadata, attendees, topics, materials, samples, sentiment, outcomes, follow-ups, voice-note consent, chat-assisted drafting, and a compact **AI agent tools** dropdown.
+    subgraph AgentLayer ["AI Agent Layer (LangGraph.js)"]
+        Graph[LangGraph StateGraph Workflow]
+        State[Typed AgentStateAnnotation]
+        IntentNode[detect_intent]
+        LogNode[log_node]
+        EditNode[edit_node]
+        RecommendNode[recommend_node]
+        RespondNode[respond_node]
+        GroqSDK[Groq SDK (llama-3.1-8b-instant)]
+        Tools[6 Core Sales & Compliance Tools]
+    end
 
-**Backend**
+    subgraph Data ["Data Layer (Prisma ORM)"]
+        PrismaClient[Prisma Client]
+        Postgres[(PostgreSQL Database)]
+        SQLiteMigrator[SQLite Data Migrator]
+    end
 
-- FastAPI exposes CRM endpoints under `/api`.
-- SQLAlchemy models persist HCPs and interactions.
-- LangGraph manages the agent workflow for conversation interpretation, compliance checks, recommendations, and draft edits.
-- Groq is used through `langchain-groq` with `llama-3.1-8b-instant` as the primary model. The `.env.example` includes `llama-3.3-70b-versatile` as an optional context-heavy model.
-
-Groq docs list `llama-3.1-8b-instant` as a production chat model and the recommended replacement for the decommissioned `gemma2-9b-it`. See:
-
-- https://console.groq.com/docs/model/llama-3.1-8b-instant
-- https://console.groq.com/docs/deprecations
-- https://console.groq.com/docs/models
-
-## LangGraph Agent Role
-
-The LangGraph agent is the orchestration layer between natural-language field notes and CRM-safe structured data. It detects the rep's intent, invokes the right sales tools, applies an interaction patch to the Redux draft, and returns a concise explanation plus compliance warnings.
-
-The frontend also exposes the five core tools directly in an **AI agent tools** dropdown. This allows the rep to deliberately run a specific tool, such as logging a note, editing the draft, finding approved materials, or recommending follow-ups.
-
-Graph flow:
-
-1. `detect_intent`: classifies the message as log, edit, or recommendation.
-2. `log`: extracts a structured draft, fetches HCP context, searches approved materials, checks compliance, and suggests follow-up.
-3. `edit`: modifies the current draft while preserving untouched fields.
-4. `recommend`: proposes next-best compliant actions and a follow-up task.
-5. `respond`: explains the result to the field representative.
-
-## Agent Tools
-
-The LangGraph agent defines the minimum five sales tools required by the brief. These tools can run through the conversational agent or through the compact AI agent tools dropdown in the frontend.
-
-- `log_interaction`: Captures interaction data from a field rep's free-text note. With Groq `llama-3.1-8b-instant`, it summarizes the discussion, maps the note into CRM fields, extracts entities such as HCP/product/material mentions, infers sentiment, and avoids inventing sample distribution. It also has a local fallback so the app remains inspectable without a token.
-- `edit_interaction`: Allows the rep to modify already logged or drafted interaction data through natural language. It applies corrections to the current draft while preserving untouched fields, then reruns compliance checks so edited records stay review-ready.
-- `fetch_hcp_profile`: Retrieves sales context for the selected HCP, including specialty, tier, organization, territory, consent status, and previous engagement. The agent uses this context to avoid generic recommendations.
-- `search_approved_materials`: Finds approved sales materials aligned to the discussion topic, such as efficacy brochures, Phase III data, safety cards, patient education, or access resources. This keeps follow-up content inside the approved-materials catalog.
-- `recommend_followups`: Suggests compliant next-best sales actions based on the interaction content, HCP sentiment, and compliance state. Examples include sending approved material, scheduling a deeper efficacy discussion, routing clinical questions to Medical Affairs, or logging objections for coaching.
-
-Two additional helper tools are implemented for completeness:
-
-- `check_compliance`: Flags off-label mentions, adverse-event language, sample eligibility issues, and unsupported promotional claims.
-- `schedule_followup`: Creates a proposed follow-up task with due date and reason.
-
-## Run Locally
-
-Frontend:
-
-```bash
-cd frontend
-npm install
-npm run dev
+    UI --> ReduxStore
+    Form --> ReduxStore
+    Assistant --> ReduxStore
+    ReduxStore --> API
+    API --> ZodValidator
+    API --> JWTMiddleware
+    API --> Services
+    Services --> AgentLayer
+    Services --> Data
+    AgentLayer --> Tools
+    AgentLayer --> GroqSDK
+    Data --> PrismaClient --> Postgres
+    SQLiteMigrator --> PrismaClient
 ```
 
-Backend:
+---
 
-```bash
-cd backend
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
-uvicorn app.main:app --reload
+## 3. LangGraph.js Agent Workflow
+
+The LangGraph.js workflow provides deterministic, compliance-checked orchestration between conversational notes and structured CRM fields.
+
+```mermaid
+graph LR
+    START([Start / User Message]) --> detect_intent[detect_intent]
+    detect_intent -->|intent == 'log'| log_node[log_node]
+    detect_intent -->|intent == 'edit'| edit_node[edit_node]
+    detect_intent -->|intent == 'recommend'| recommend_node[recommend_node]
+    
+    log_node --> respond_node[respond_node]
+    edit_node --> respond_node
+    recommend_node --> respond_node
+    
+    respond_node --> END_NODE([End / Draft Patch & Response])
 ```
 
-Optional local Postgres:
+### 3.1 Core Agent Sales Tools
+
+1. **`log_interaction`**: Extracts structured CRM fields (hcp_name, interaction_type, attendees, topics_discussed, materials_shared, samples_distributed, sentiment, outcomes, follow_up_actions, ai_summary, extracted_entities) from unstructured field notes using Groq LLM or deterministic fallback.
+2. **`edit_interaction`**: Modifies existing draft fields based on natural language instructions while preserving untouched fields.
+3. **`fetch_hcp_profile`**: Retrieves HCP tier, specialty, organization, territory, and consent context to inform personalization.
+4. **`search_approved_materials`**: Queries the approved promotional materials catalog for relevant efficacy brochures, Phase III papers, safety cards, and reimbursement FAQs.
+5. **`recommend_followups`**: Suggests next-best compliant sales actions based on HCP sentiment and compliance constraints.
+6. **`check_compliance`**: Automated guardrail flagging off-label discussions, adverse events, unauthorized sampling, and promotional claim violations.
+7. **`schedule_followup`**: Formulates a proposed follow-up task with a target due date.
+
+---
+
+## 4. Database Schema (PostgreSQL & Prisma)
+
+The database schema preserves all legacy models while establishing full relational integrity and adding authentication and task management:
+
+- **`User`**: System accounts (Field Reps, Managers, Compliance Officers) with hashed passwords and role-based access.
+- **`HCP`**: Healthcare Professional registry including tier, specialty, territory, organization, and consent status.
+- **`Interaction`**: Detailed log records, indexed by `[hcpId, interactionDate(desc)]`, storing structured topics, outcomes, JSON materials, JSON samples, sentiment, and compliance flags.
+- **`FollowUp`**: Actionable tasks linked to HCPs and interactions with due dates and statuses.
+
+---
+
+## 5. Getting Started
+
+### 5.1 Prerequisites
+
+- **Node.js**: v18.18+ or v20+ (tested on Node v24 LTS)
+- **Docker & Docker Compose** (for PostgreSQL database)
+- **Groq API Key** (optional: app includes robust deterministic fallbacks if offline)
+
+### 5.2 Environment Configuration
+
+Copy the example environment file:
 
 ```bash
-docker compose up -d postgres
+cp .env.example .env
 ```
 
-Set a new Groq token in `backend/.env`:
+Configure your `.env` variables:
 
 ```env
-GROQ_API_KEY=your-new-token
+# Application & Server
+NODE_ENV=development
+PORT=3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Groq LLM Configuration
+GROQ_API_KEY=your-groq-api-key-here
 GROQ_MODEL=llama-3.1-8b-instant
-DATABASE_URL=sqlite:///./test.db
-FRONTEND_ORIGIN=http://localhost:5173
+GROQ_CONTEXT_MODEL=llama-3.3-70b-versatile
+AI_REQUEST_TIMEOUT_SECONDS=12
+
+# Database Configuration (PostgreSQL)
+DATABASE_URL=postgresql://crm_user:crm_password@localhost:5432/ai_crm?schema=public
+
+# Security & Authentication
+JWT_SECRET=super-secret-jwt-key-replace-in-production-min-32-chars
+JWT_EXPIRES_IN=7d
 ```
 
-For Postgres, use:
+### 5.3 Quick Start with Docker Compose
 
-```env
-DATABASE_URL=postgresql+psycopg://crm_user:crm_password@localhost:5432/ai_crm
+Run the entire application (Next.js + PostgreSQL) with a single command:
+
+```bash
+docker compose up --build
 ```
 
-For MySQL, use a SQLAlchemy URL such as:
+Access the application at `http://localhost:3000`.
 
-```env
-DATABASE_URL=mysql+pymysql://crm_user:crm_password@localhost:3306/ai_crm
+### 5.4 Local Development Setup
+
+1. **Start PostgreSQL**:
+   ```bash
+   docker compose up -d postgres
+   ```
+
+2. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Generate Prisma Client & Push Schema**:
+   ```bash
+   npm run prisma:generate
+   npm run prisma:push
+   ```
+
+4. **Seed Database or Migrate Legacy SQLite Data**:
+   - To seed fresh test data:
+     ```bash
+     npm run prisma:seed
+     ```
+   - To migrate existing data from legacy `test.db`:
+     ```bash
+     npm run db:migrate:sqlite
+     ```
+
+5. **Start Development Server**:
+   ```bash
+   npm run dev
+   ```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## 6. API Reference
+
+All endpoints are built using Next.js Route Handlers with Zod validation.
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/health` | Service health status, runtime info, and active model. |
+| `GET` | `/health` | Compatibility health check route. |
+| `GET` | `/api/hcps` | Lists available Healthcare Professionals. |
+| `POST` | `/api/hcps` | Registers a new HCP. |
+| `GET` | `/api/hcps/:id` | Retrieves HCP details by ID. |
+| `GET` | `/api/interactions` | Lists saved interactions (supports `?hcp_id=...` filter). |
+| `POST` | `/api/interactions` | Saves a structured interaction log, runs compliance, returns record. |
+| `PATCH` | `/api/interactions/:id` | Modifies an existing interaction and reruns compliance evaluation. |
+| `POST` | `/api/agent/chat` | Runs the full LangGraph.js conversation agent; returns draft patch & tool calls. |
+| `POST` | `/api/agent/tool` | Executes an explicit sales tool from the AI agent tools dropdown. |
+| `GET` | `/api/compliance/rules` | Returns the list of regulatory and compliance rules. |
+| `POST` | `/api/compliance/check` | Evaluates an interaction payload for compliance risks. |
+| `GET` | `/api/follow-ups` | Lists scheduled follow-up tasks. |
+| `POST` | `/api/follow-ups` | Creates a follow-up task or generates recommendations. |
+| `POST` | `/api/auth/register` | Registers a new user and issues a secure JWT cookie. |
+| `POST` | `/api/auth/login` | Authenticates user and issues JWT. |
+| `GET` | `/api/auth/me` | Retrieves current authenticated session. |
+
+---
+
+## 7. Automated Testing Suite
+
+The repository includes a comprehensive Vitest test suite covering validation, compliance rules, AI tools, LangGraph workflows, and API route handlers.
+
+Run tests:
+
+```bash
+npm test
 ```
 
-## API Surface
+Watch mode for development:
 
-- `GET /api/health`: confirms FastAPI, LangGraph, and selected Groq model.
-- `GET /api/hcps`: lists available HCPs.
-- `POST /api/interactions`: saves a structured log and enriches it with summary, entities, and compliance flags.
-- `PATCH /api/interactions/{id}`: edits a saved interaction and reruns compliance checks.
-- `POST /api/agent/chat`: runs the LangGraph assistant and returns a draft patch plus tool trace.
-- `POST /api/agent/tool`: runs a specific sales tool from the frontend AI agent tools dropdown.
-
-## How To Demo
-
-1. From the `backend` directory, start the server with `uvicorn app.main:app --reload`.
-2. From the `frontend` directory, start the UI with `npm run dev`.
-3. Open the Vite URL, usually `http://localhost:5173`.
-4. Type a meeting note into the AI assistant, such as:
-
-```text
-Met Dr. Menon, discussed Product X efficacy and safety profile. Positive response, wants Phase III data.
+```bash
+npm run test:watch
 ```
 
-5. Send the message or open **AI agent tools** and run `Log Interaction`.
-6. Review the populated CRM form fields.
-7. Use `Edit Interaction` to modify a field, `Approved Materials` to add compliant materials, or `Recommend Follow-ups` to generate next actions.
-8. Save the structured interaction.
+Run TypeScript compilation check:
 
-## Design Notes
+```bash
+npx tsc --noEmit
+```
 
-- The chat interface does not bypass review. It drafts and patches the same Redux form state the rep can inspect before submission.
-- Voice-note summarization is gated by an explicit consent checkbox.
-- Compliance checks run before persistence and after edits.
-- The AI agent tools dropdown provides direct access to the five core sales tools without crowding the chat area.
+Build production bundle:
+
+```bash
+npm run build
+```
+
+---
+
+## 8. Preserved Original Implementation
+
+The complete original Python + React codebase has been preserved in `_original_backup/` for auditability and compliance verification.
