@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  REP
+  MANAGER
+  COMPLIANCE_OFFICER
+  ADMIN
+}
+
+enum Sentiment {
+  Positive
+  Neutral
+  Negative
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  name         String
+  passwordHash String        @map("password_hash")
+  role         Role          @default(REP)
+  territory    String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  interactions Interaction[]
+
+  @@map("users")
+}
+
+model HCP {
+  id            String        @id
+  fullName      String        @map("full_name") @db.VarChar(160)
+  specialty     String        @db.VarChar(120)
+  tier          String        @default("B") @db.VarChar(40)
+  organization  String        @db.VarChar(180)
+  territory     String        @db.VarChar(120)
+  consentStatus String        @default("unknown") @map("consent_status") @db.VarChar(40)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  interactions  Interaction[]
+  followUps     FollowUp[]
+
+  @@map("hcps")
+}
+
+model Interaction {
+  id                     BigInt     @id @default(autoincrement())
+  hcpId                  String     @map("hcp_id") @db.VarChar(40)
+  hcpName                String     @map("hcp_name") @db.VarChar(160)
+  interactionType        String     @map("interaction_type") @db.VarChar(80)
+  interactionDate        DateTime   @map("interaction_date") @db.Date
+  interactionTime        String     @map("interaction_time") @db.VarChar(20)
+  attendees              String     @default("") @db.Text
+  topicsDiscussed        String     @default("") @map("topics_discussed") @db.Text
+  materialsShared        Json       @default("[]") @map("materials_shared")
+  samplesDistributed     Json       @default("[]") @map("samples_distributed")
+  sentiment              Sentiment  @default(Neutral)
+  outcomes               String     @default("") @db.Text
+  followUpActions        String     @default("") @map("follow_up_actions") @db.Text
+  aiSummary              String     @default("") @map("ai_summary") @db.Text
+  extractedEntities      Json       @default("{}") @map("extracted_entities")
+  complianceFlags        Json       @default("[]") @map("compliance_flags")
+  channel                String     @default("field_visit") @db.VarChar(80)
+  consentForVoiceSummary Boolean    @default(false) @map("consent_for_voice_summary")
+  createdById            String?    @map("created_by_id")
+  createdAt              DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  hcp       HCP        @relation(fields: [hcpId], references: [id], onDelete: Restrict)
+  createdBy User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  followUps FollowUp[]
+
+  @@index([hcpId, interactionDate(sort: Desc)], map: "idx_interactions_hcp_date")
+  @@map("interactions")
+}
+
+model FollowUp {
+  id            String       @id @default(uuid())
+  interactionId BigInt?      @map("interaction_id")
+  hcpId         String       @map("hcp_id")
+  hcpName       String       @map("hcp_name")
+  reason        String       @db.Text
+  dueDate       DateTime     @map("due_date") @db.Date
+  status        String       @default("proposed") @db.VarChar(40)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  interaction Interaction? @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+  hcp         HCP          @relation(fields: [hcpId], references: [id], onDelete: Cascade)
+
+  @@map("follow_ups")
+}
+
