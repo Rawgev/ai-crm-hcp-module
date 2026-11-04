@@ -29,7 +29,9 @@
   ],
   "exclude": [
     "node_modules",
-    "_original_backup"
+    "_original_backup",
+    "e2e",
+    "playwright.config.ts"
   ]
 }
 
