@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -98,3 +99,19 @@ model FollowUp {
   @@map("follow_ups")
 }
 
+model AuditLog {
+  id         String   @id @default(uuid())
+  entityType String   @map("entity_type") @db.VarChar(50) // e.g. "Interaction", "HCP"
+  entityId   String   @map("entity_id") @db.VarChar(100)
+  action     String   @db.VarChar(30) // "CREATE", "UPDATE", "COMPLIANCE_REVIEW"
+  userId     String   @map("user_id")
+  userName   String   @map("user_name") @db.VarChar(160)
+  userRole   String   @map("user_role") @db.VarChar(40)
+  changes    Json     @default("{}") // { before: {...}, after: {...} }
+  ipAddress  String?  @map("ip_address") @db.VarChar(60)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([entityType, entityId], map: "idx_audit_entity")
+  @@index([userId], map: "idx_audit_user")
+  @@map("audit_logs")
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getInteractionById, updateInteraction } from "@/server/services/interaction.service";
 import { interactionUpdateSchema } from "@/server/validation/interaction.schema";
+import { getSession } from "@/lib/auth/session";
 
 export async function GET(
   _req: NextRequest,
@@ -37,7 +38,15 @@ export async function PATCH(
     const body = await req.json();
     const validated = interactionUpdateSchema.parse(body);
 
-    const updated = await updateInteraction(id, validated);
+    const session = await getSession(req);
+    const userContext = {
+      userId: session.user?.id || "user_default_rep",
+      userName: session.user?.name || "Alex Vance",
+      userRole: session.user?.role || "REP",
+      ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "127.0.0.1",
+    };
+
+    const updated = await updateInteraction(id, validated, userContext);
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error("Error updating interaction:", error);

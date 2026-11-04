@@ -1,6 +1,7 @@
 import { existsSync, copyFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createRequire } from "node:module";
+import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { checkCompliance } from "../agent/tools";
 
@@ -28,6 +29,12 @@ if (!existsSync(dbPath) && existsSync(backupDbPath)) {
 let sqliteDb: any = null;
 
 function getSqlite(): any {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Production database connection failure: SQLite local fallback is strictly disabled in production to guarantee data consistency and compliance (FDA 21 CFR Part 11). Verify PostgreSQL connectivity."
+    );
+  }
+
   if (!sqliteDb && DatabaseSyncClass) {
     try {
       sqliteDb = new DatabaseSyncClass(dbPath);
@@ -72,6 +79,18 @@ function getSqlite(): any {
           territory TEXT DEFAULT 'South Zone',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS audit_logs (
+          id TEXT PRIMARY KEY,
+          entity_type VARCHAR(50) NOT NULL,
+          entity_id VARCHAR(100) NOT NULL,
+          action VARCHAR(30) NOT NULL,
+          user_id TEXT NOT NULL,
+          user_name VARCHAR(160) NOT NULL,
+          user_role VARCHAR(40) NOT NULL,
+          changes TEXT DEFAULT '{}',
+          ip_address VARCHAR(60),
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
       `);
 
@@ -286,4 +305,211 @@ export function createFallbackInteraction(payload: any) {
     updated_at: now,
   };
 }
+
+export function getFallbackInteraction(id: number) {
+  const db = getSqlite();
+  if (!db) return null;
+
+  const row = db.prepare("SELECT * FROM interactions WHERE id = ?").get(id) as any;
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    hcp_id: row.hcp_id,
+    hcp_name: row.hcp_name,
+    interaction_type: row.interaction_type,
+    interaction_date: row.interaction_date,
+    interaction_time: row.interaction_time,
+    attendees: row.attendees,
+    topics_discussed: row.topics_discussed,
+    materials_shared: JSON.parse(row.materials_shared || "[]"),
+    samples_distributed: JSON.parse(row.samples_distributed || "[]"),
+    sentiment: row.sentiment,
+    outcomes: row.outcomes,
+    follow_up_actions: row.follow_up_actions,
+    ai_summary: row.ai_summary,
+    extracted_entities: JSON.parse(row.extracted_entities || "{}"),
+    compliance_flags: JSON.parse(row.compliance_flags || "[]"),
+    channel: row.channel,
+    consent_for_voice_summary: Boolean(row.consent_for_voice_summary),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+export function updateFallbackInteraction(id: number, payload: any) {
+  const existing = getFallbackInteraction(id);
+  if (!existing) {
+    throw new Error("NOT_FOUND");
+  }
+
+  const merged = { ...existing, ...payload };
+  const flags = checkCompliance({
+    topics_discussed: merged.topics_discussed,
+    outcomes: merged.outcomes,
+    follow_up_actions: merged.follow_up_actions,
+    samples_distributed: merged.samples_distributed,
+    consent_for_voice_summary: merged.consent_for_voice_summary,
+  });
+
+  const now = new Date().toISOString();
+  const db = getSqlite();
+
+  if (db) {
+    const stmt = db.prepare(`
+      UPDATE interactions SET
+        hcp_name = ?,
+        interaction_type = ?,
+        interaction_date = ?,
+        interaction_time = ?,
+        attendees = ?,
+        topics_discussed = ?,
+        materials_shared = ?,
+        samples_distributed = ?,
+        sentiment = ?,
+        outcomes = ?,
+        follow_up_actions = ?,
+        compliance_flags = ?,
+        channel = ?,
+        consent_for_voice_summary = ?,
+        updated_at = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(
+      merged.hcp_name,
+      merged.interaction_type,
+      merged.interaction_date,
+      merged.interaction_time,
+      merged.attendees || "",
+      merged.topics_discussed || "",
+      JSON.stringify(merged.materials_shared || []),
+      JSON.stringify(merged.samples_distributed || []),
+      merged.sentiment || "Neutral",
+      merged.outcomes || "",
+      merged.follow_up_actions || "",
+      JSON.stringify(flags),
+      merged.channel || "field_visit",
+      merged.consent_for_voice_summary ? 1 : 0,
+      now,
+      id
+    );
+  }
+
+  return {
+    ...merged,
+    compliance_flags: flags,
+    updated_at: now,
+  };
+}
+
+export interface FallbackAuditLogEntry {
+  id?: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  changes: Record<string, any>;
+  ipAddress?: string | null;
+  createdAt?: string;
+}
+
+export function createFallbackAuditLog(entry: FallbackAuditLogEntry) {
+  const db = getSqlite();
+  const id = entry.id || randomUUID();
+  const now = entry.createdAt || new Date().toISOString();
+
+  if (!db) {
+    return {
+      id,
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      action: entry.action,
+      userId: entry.userId,
+      userName: entry.userName,
+      userRole: entry.userRole,
+      changes: entry.changes || {},
+      ipAddress: entry.ipAddress || null,
+      createdAt: now,
+    };
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO audit_logs (
+      id, entity_type, entity_id, action, user_id, user_name, user_role, changes, ip_address, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    id,
+    entry.entityType,
+    entry.entityId,
+    entry.action,
+    entry.userId,
+    entry.userName,
+    entry.userRole,
+    JSON.stringify(entry.changes || {}),
+    entry.ipAddress || null,
+    now
+  );
+
+  return {
+    id,
+    entityType: entry.entityType,
+    entityId: entry.entityId,
+    action: entry.action,
+    userId: entry.userId,
+    userName: entry.userName,
+    userRole: entry.userRole,
+    changes: entry.changes || {},
+    ipAddress: entry.ipAddress || null,
+    createdAt: now,
+  };
+}
+
+export function listFallbackAuditLogs(filters?: {
+  entityType?: string;
+  entityId?: string;
+  userId?: string;
+  limit?: number;
+}) {
+  const db = getSqlite();
+  if (!db) return [];
+
+  let query = "SELECT * FROM audit_logs WHERE 1=1";
+  const params: any[] = [];
+
+  if (filters?.entityType) {
+    query += " AND entity_type = ?";
+    params.push(filters.entityType);
+  }
+  if (filters?.entityId) {
+    query += " AND entity_id = ?";
+    params.push(filters.entityId);
+  }
+  if (filters?.userId) {
+    query += " AND user_id = ?";
+    params.push(filters.userId);
+  }
+
+  query += " ORDER BY created_at DESC LIMIT ?";
+  params.push(filters?.limit || 50);
+
+  const rows = db.prepare(query).all(...params) as any[];
+  return rows.map((r) => ({
+    id: r.id,
+    entityType: r.entity_type,
+    entityId: r.entity_id,
+    action: r.action,
+    userId: r.user_id,
+    userName: r.user_name,
+    userRole: r.user_role,
+    changes: typeof r.changes === "string" ? JSON.parse(r.changes || "{}") : r.changes,
+    ipAddress: r.ip_address,
+    createdAt: r.created_at,
+  }));
+}
+
 

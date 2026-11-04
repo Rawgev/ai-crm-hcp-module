@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useMemo, ChangeEvent, FormEvent } from "react";
+import React, { useMemo, useState, ChangeEvent, FormEvent } from "react";
 import {
+  History,
   Mic,
   PackagePlus,
   RotateCcw,
@@ -19,6 +20,7 @@ import {
   updateField,
   InteractionDraft,
 } from "@/redux/slices/interactionSlice";
+import { AuditHistoryModal } from "./AuditHistoryModal";
 
 const sentimentOptions: Array<"Positive" | "Neutral" | "Negative"> = [
   "Positive",
@@ -49,6 +51,7 @@ const samples = [
 
 export function InteractionForm() {
   const dispatch = useAppDispatch();
+  const [showAuditModal, setShowAuditModal] = useState(false);
   const { draft, status, lastSaved, error } = useAppSelector(
     (state) => state.interaction
   );
@@ -274,7 +277,29 @@ export function InteractionForm() {
       <footer className="form-actions">
         {error && <span className="error-text">{error}</span>}
         {lastSaved && (
-          <span className="success-text">Saved interaction #{lastSaved.id}</span>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <span className="success-text">Saved interaction #{lastSaved.id}</span>
+            <button
+              type="button"
+              onClick={() => setShowAuditModal(true)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                background: "#f1f5f9",
+                border: "1px solid #cbd5e1",
+                borderRadius: "4px",
+                padding: "3px 8px",
+                fontSize: "12px",
+                cursor: "pointer",
+                color: "#334155",
+                fontWeight: 600,
+              }}
+              title="Inspect 21 CFR Part 11 Audit Trail"
+            >
+              <History size={13} /> View Audit Trail
+            </button>
+          </div>
         )}
         <button
           className="primary-button"
@@ -284,10 +309,22 @@ export function InteractionForm() {
           {status === "saving" ? <Sparkles size={17} /> : <Save size={17} />}
           {status === "saving" ? "Saving..." : "Log Interaction"}
         </button>
-        <button className="secondary-button" type="button">
-          <Send size={16} /> Submit for Review
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => setShowAuditModal(true)}
+          title="Open complete regulatory audit trail"
+        >
+          <History size={15} /> Audit Log
         </button>
       </footer>
+
+      <AuditHistoryModal
+        isOpen={showAuditModal}
+        onClose={() => setShowAuditModal(false)}
+        entityType="Interaction"
+        entityId={lastSaved?.id || null}
+      />
     </form>
   );
 }

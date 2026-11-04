@@ -3,6 +3,8 @@ import { createInteraction, listInteractions } from "@/server/services/interacti
 import { interactionCreateSchema } from "@/server/validation/interaction.schema";
 import { getSession } from "@/lib/auth/session";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -21,9 +23,14 @@ export async function POST(req: NextRequest) {
     const validated = interactionCreateSchema.parse(body);
 
     const session = await getSession(req);
-    const userId = session.user?.id;
+    const userContext = {
+      userId: session.user?.id || "user_default_rep",
+      userName: session.user?.name || "Alex Vance",
+      userRole: session.user?.role || "REP",
+      ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "127.0.0.1",
+    };
 
-    const interaction = await createInteraction(validated, userId);
+    const interaction = await createInteraction(validated, userContext);
     return NextResponse.json(interaction, { status: 201 });
   } catch (error: any) {
     console.error("Error creating interaction:", error);
