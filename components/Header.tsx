@@ -73,8 +73,8 @@ export function Header() {
   return (
     <header className="topbar">
       <div>
-        <p className="eyebrow">AI-first CRM</p>
-        <h1>Log HCP Interaction</h1>
+        <p className="eyebrow">Pharmaxora AI</p>
+        <h1>HCP Interaction Hub</h1>
       </div>
       <div className="topbar-metrics" aria-label="interaction context">
         {currentUser && (

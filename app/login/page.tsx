@@ -72,7 +72,7 @@ function LoginForm() {
           <ShieldCheck size={28} />
         </div>
         <p className="eyebrow" style={{ textAlign: "center", marginBottom: "4px" }}>
-          Life Sciences CRM
+          Pharmaxora Life Sciences
         </p>
         <h1 style={{ fontSize: "24px", fontWeight: 800 }}>Authorized Sign In</h1>
         <p className="health-copy" style={{ margin: "6px 0 0", fontSize: "13px" }}>

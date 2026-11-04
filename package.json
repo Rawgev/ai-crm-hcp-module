@@ -1,8 +1,8 @@
 {
-  "name": "ai-crm-hcp-module",
+  "name": "pharmaxora",
   "version": "2.0.0",
   "private": true,
-  "description": "Enterprise Next.js Full-Stack AI-first CRM HCP Module with LangGraph.js and PostgreSQL",
+  "description": "Pharmaxora — Enterprise Next.js Full-Stack AI-first CRM HCP Module with LangGraph.js and PostgreSQL",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
