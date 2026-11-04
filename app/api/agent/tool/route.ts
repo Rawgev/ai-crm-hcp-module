@@ -7,9 +7,12 @@ import {
   recommendFollowups,
   searchApprovedMaterials,
 } from "@/server/agent/tools";
+import { validateAndSanitizePrompt } from "@/server/agent/security";
 import { normalizeInteractionPatch } from "@/server/services/interaction.service";
 import { agentToolRequestSchema } from "@/server/validation/agent.schema";
 import { getAppConfig } from "@/lib/config";
+
+export const dynamic = "force-dynamic";
 
 const config = getAppConfig();
 
@@ -39,6 +42,24 @@ export async function POST(req: NextRequest) {
 
     const draft = payload.current_draft || {};
     const message = (payload.message || "").trim();
+
+    // Prompt Injection Defense Guardrail
+    if (message) {
+      const securityCheck = validateAndSanitizePrompt(message);
+      if (!securityCheck.isSafe) {
+        return NextResponse.json(
+          {
+            success: false,
+            isSecurityViolation: true,
+            message: securityCheck.reason,
+            response: securityCheck.reason,
+            interaction_patch: {},
+            tool_calls: [requestedTool, "security_guardrail_reject"],
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     if (payload.tool_name === "log_interaction") {
       const note =

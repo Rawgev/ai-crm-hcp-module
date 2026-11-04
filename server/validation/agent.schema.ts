@@ -3,6 +3,7 @@ import { z } from "zod";
 export const agentRequestSchema = z.object({
   message: z.string().default(""),
   current_draft: z.record(z.any()).default({}),
+  thread_id: z.string().optional(),
 });
 
 export const agentToolRequestSchema = agentRequestSchema.extend({

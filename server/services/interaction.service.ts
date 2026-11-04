@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { checkCompliance } from "../agent/tools";
 import { InteractionCreateInput, InteractionUpdateInput } from "../validation/interaction.schema";
 import { recordAuditLog, computeDiff } from "./audit.service";
+import { triggerPharmacovigilanceEscalation } from "./compliance.service";
 import {
   listFallbackInteractions,
   createFallbackInteraction,
@@ -98,6 +99,33 @@ export async function getInteractionById(id: number | bigint) {
   }
 }
 
+function checkAndEscalateAdverseEvents(
+  interactionId: number | bigint | string,
+  hcpId: string,
+  hcpName: string,
+  flags: string[],
+  description: string,
+  userCtx: UserContext
+) {
+  const hasAdverseEvent = flags.some((f) =>
+    f.toLowerCase().includes("adverse event") || f.toLowerCase().includes("side effect")
+  );
+  if (hasAdverseEvent) {
+    triggerPharmacovigilanceEscalation({
+      interactionId: typeof interactionId === "bigint" ? Number(interactionId) : interactionId,
+      hcpId,
+      hcpName,
+      detectedFlags: flags,
+      adverseEventDescription: description,
+      reportedBy: {
+        userId: userCtx.userId,
+        userName: userCtx.userName,
+        userRole: userCtx.userRole,
+      },
+    });
+  }
+}
+
 export async function createInteraction(
   payload: InteractionCreateInput,
   userOrId?: string | UserContext,
@@ -159,6 +187,16 @@ export async function createInteraction(
       ipAddress,
     });
 
+    // Automated Pharmacovigilance Escalation
+    checkAndEscalateAdverseEvents(
+      formatted.id,
+      payload.hcp_id,
+      payload.hcp_name,
+      complianceFlags,
+      `${payload.topics_discussed || ""} ${payload.outcomes || ""}`,
+      userCtx
+    );
+
     return formatted;
   } catch (error) {
     if (process.env.NODE_ENV === "production") {
@@ -177,6 +215,15 @@ export async function createInteraction(
       changes: { after: fallbackRecord },
       ipAddress,
     });
+
+    checkAndEscalateAdverseEvents(
+      fallbackRecord.id,
+      payload.hcp_id,
+      payload.hcp_name,
+      fallbackRecord.compliance_flags || [],
+      `${payload.topics_discussed || ""} ${payload.outcomes || ""}`,
+      userCtx
+    );
 
     return fallbackRecord;
   }
@@ -249,6 +296,15 @@ export async function updateInteraction(
       ipAddress,
     });
 
+    checkAndEscalateAdverseEvents(
+      id,
+      afterState.hcp_id,
+      afterState.hcp_name,
+      afterState.compliance_flags || [],
+      `${afterState.topics_discussed || ""} ${afterState.outcomes || ""}`,
+      { userId, userName, userRole, ipAddress }
+    );
+
     return afterState;
   } catch (error: any) {
     if (error?.message === "NOT_FOUND") {
@@ -273,6 +329,15 @@ export async function updateInteraction(
       changes: diff,
       ipAddress,
     });
+
+    checkAndEscalateAdverseEvents(
+      id,
+      fallbackRecord.hcp_id,
+      fallbackRecord.hcp_name,
+      fallbackRecord.compliance_flags || [],
+      `${fallbackRecord.topics_discussed || ""} ${fallbackRecord.outcomes || ""}`,
+      { userId, userName, userRole, ipAddress }
+    );
 
     return fallbackRecord;
   }

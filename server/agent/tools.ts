@@ -4,6 +4,7 @@ import {
   fallbackEdit,
   fallbackExtract,
   getGroqClient,
+  invokeGroqWithFallbackLadder,
   invokeGroqWithTimeout,
 } from "./groq";
 
@@ -157,7 +158,7 @@ export async function logInteraction(
   }
 
   try {
-    const rawOutput = await invokeGroqWithTimeout([
+    const ladderResult = await invokeGroqWithFallbackLadder([
       {
         role: "system",
         content:
@@ -172,8 +173,11 @@ export async function logInteraction(
       },
     ]);
 
-    const patch = extractJsonFromText(rawOutput);
+    const patch = extractJsonFromText(ladderResult.content);
     if (patch && Object.keys(patch).length > 0) {
+      if (ladderResult.tier === "secondary") {
+        patch.ai_summary = `${patch.ai_summary || "HCP discussion processed"} (via secondary model)`;
+      }
       return patch;
     }
     return fallbackExtract(note, currentDraft);
@@ -204,7 +208,7 @@ export async function editInteraction(
   }
 
   try {
-    const rawOutput = await invokeGroqWithTimeout([
+    const ladderResult = await invokeGroqWithFallbackLadder([
       {
         role: "system",
         content:
@@ -217,7 +221,7 @@ export async function editInteraction(
       },
     ]);
 
-    const updated = extractJsonFromText(rawOutput);
+    const updated = extractJsonFromText(ladderResult.content);
     if (updated && Object.keys(updated).length > 0) {
       return updated;
     }

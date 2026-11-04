@@ -11,25 +11,34 @@ export interface AssistantState {
   status: "idle" | "thinking";
   error: string | null;
   lastToolCalls: string[];
+  threadId: string | null;
 }
 
 export const sendAssistantMessage = createAsyncThunk(
   "assistant/sendMessage",
   async (
     { message, currentDraft }: { message: string; currentDraft: InteractionDraft },
-    { rejectWithValue }
+    { getState, rejectWithValue }
   ) => {
     try {
+      const state = getState() as { assistant?: AssistantState };
+      const threadId = state.assistant?.threadId || undefined;
+
       const response = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message,
           current_draft: currentDraft,
+          thread_id: threadId,
         }),
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData?.isSecurityViolation) {
+          return errorData;
+        }
         return rejectWithValue("AI service temporarily unavailable");
       }
 
@@ -66,6 +75,10 @@ export const runAgentTool = createAsyncThunk(
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData?.isSecurityViolation) {
+          return errorData;
+        }
         return rejectWithValue("AI service temporarily unavailable");
       }
 
@@ -87,6 +100,7 @@ const initialState: AssistantState = {
   status: "idle",
   error: null,
   lastToolCalls: [],
+  threadId: null,
 };
 
 export const assistantSlice = createSlice({
@@ -95,6 +109,9 @@ export const assistantSlice = createSlice({
   reducers: {
     addUserMessage(state, action: PayloadAction<string>) {
       state.messages.push({ role: "user", content: action.payload });
+    },
+    resetThread(state) {
+      state.threadId = null;
     },
   },
   extraReducers(builder) {
@@ -114,6 +131,9 @@ export const assistantSlice = createSlice({
         });
         state.error = action.payload.success === false ? action.payload.message : null;
         state.lastToolCalls = action.payload.tool_calls ?? [];
+        if (action.payload.thread_id) {
+          state.threadId = action.payload.thread_id;
+        }
       })
       .addCase(sendAssistantMessage.rejected, (state, action) => {
         state.status = "idle";
@@ -151,6 +171,5 @@ export const assistantSlice = createSlice({
   },
 });
 
-export const { addUserMessage } = assistantSlice.actions;
+export const { addUserMessage, resetThread } = assistantSlice.actions;
 export default assistantSlice.reducer;
-

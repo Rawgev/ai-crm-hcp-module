@@ -18,6 +18,7 @@ export function getGroqClient(): Groq | null {
 }
 
 export function extractJsonFromText(text: string): Record<string, unknown> {
+  if (!text) return {};
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) {
     return {};
@@ -77,34 +78,158 @@ export function fallbackEdit(
   return patched;
 }
 
+export interface FallbackLadderResult {
+  content: string;
+  modelUsed: string;
+  tier: "primary" | "secondary" | "fallback";
+  attempts: number;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimitOrTransient(error: any): boolean {
+  if (!error) return false;
+  const status = error?.status || error?.statusCode;
+  if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
+    return true;
+  }
+  const msg = String(error?.message || "").toLowerCase();
+  return (
+    msg.includes("429") ||
+    msg.includes("rate limit") ||
+    msg.includes("rate_limit_exceeded") ||
+    msg.includes("timeout") ||
+    msg.includes("econnreset") ||
+    msg.includes("fetch failed")
+  );
+}
+
+/**
+ * Multi-Model Fallback Ladder (Phase 3)
+ * Primary: llama-3.1-8b-instant (ultra-fast, low latency)
+ * Secondary: llama-3.3-70b-versatile (high-capacity fallback for rate limits or complex JSON)
+ * Tertiary: Local deterministic heuristic engine
+ */
+export async function invokeGroqWithFallbackLadder(
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
+  options?: {
+    primaryModel?: string;
+    secondaryModel?: string;
+    timeoutSeconds?: number;
+    maxRetries?: number;
+  }
+): Promise<FallbackLadderResult> {
+  const client = getGroqClient();
+  const primaryModel = options?.primaryModel || config.GROQ_MODEL || "llama-3.1-8b-instant";
+  const secondaryModel = options?.secondaryModel || config.GROQ_CONTEXT_MODEL || "llama-3.3-70b-versatile";
+  const timeoutSeconds = options?.timeoutSeconds || config.AI_REQUEST_TIMEOUT_SECONDS || 12;
+
+  if (!client) {
+    return {
+      content: "",
+      modelUsed: "local-fallback",
+      tier: "fallback",
+      attempts: 0,
+    };
+  }
+
+  let totalAttempts = 0;
+
+  // 1. Try Primary Model with exponential backoff
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    totalAttempts++;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+
+    try {
+      const response = await client.chat.completions.create(
+        {
+          model: primaryModel,
+          messages,
+          temperature: 0.1,
+          max_tokens: 900,
+        },
+        { signal: controller.signal }
+      );
+
+      clearTimeout(timeoutId);
+      const text = response.choices[0]?.message?.content || "";
+      if (text) {
+        return {
+          content: text,
+          modelUsed: primaryModel,
+          tier: "primary",
+          attempts: totalAttempts,
+        };
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      const isTransient = isRateLimitOrTransient(err);
+      if (attempt === 1 && isTransient) {
+        // Backoff with jitter (500ms)
+        await sleep(500 + Math.random() * 200);
+        continue;
+      }
+      console.warn(`Primary model ${primaryModel} failed; triggering secondary fallback ladder:`, err?.message || err);
+      break;
+    }
+  }
+
+  // 2. Escalation Tier: Secondary Model (llama-3.3-70b-versatile)
+  totalAttempts++;
+  const secondaryController = new AbortController();
+  const secondaryTimeoutId = setTimeout(() => secondaryController.abort(), timeoutSeconds * 1000);
+
+  try {
+    const response = await client.chat.completions.create(
+      {
+        model: secondaryModel,
+        messages,
+        temperature: 0.1,
+        max_tokens: 1200,
+      },
+      { signal: secondaryController.signal }
+    );
+
+    clearTimeout(secondaryTimeoutId);
+    const text = response.choices[0]?.message?.content || "";
+    if (text) {
+      return {
+        content: text,
+        modelUsed: secondaryModel,
+        tier: "secondary",
+        attempts: totalAttempts,
+      };
+    }
+  } catch (err: any) {
+    clearTimeout(secondaryTimeoutId);
+    console.error(`Secondary model ${secondaryModel} failed; escalating to tertiary heuristics:`, err?.message || err);
+  }
+
+  // 3. Tertiary Fallback Tier: Local deterministic heuristics
+  return {
+    content: "",
+    modelUsed: "local-heuristics",
+    tier: "fallback",
+    attempts: totalAttempts,
+  };
+}
+
 export async function invokeGroqWithTimeout(
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
   model: string = config.GROQ_MODEL,
   timeoutSeconds: number = config.AI_REQUEST_TIMEOUT_SECONDS
 ): Promise<string> {
-  const client = getGroqClient();
-  if (!client) {
-    throw new Error("GROQ_API_KEY is not configured");
+  const result = await invokeGroqWithFallbackLadder(messages, {
+    primaryModel: model,
+    timeoutSeconds,
+  });
+
+  if (!result.content && result.tier === "fallback") {
+    throw new Error("GROQ_API_KEY is not configured or all models failed");
   }
 
-  const controller = new AbortController();
-  const timeoutMs = timeoutSeconds * 1000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await client.chat.completions.create(
-      {
-        model,
-        messages,
-        temperature: 0.1,
-        max_tokens: 900,
-      },
-      { signal: controller.signal }
-    );
-
-    return response.choices[0]?.message?.content || "";
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return result.content;
 }
-

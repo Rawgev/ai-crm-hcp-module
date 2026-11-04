@@ -1,5 +1,6 @@
-import { StateGraph, END, START } from "@langchain/langgraph";
+import { StateGraph, END, START, MemorySaver } from "@langchain/langgraph";
 import { AgentStateAnnotation, AgentStateType } from "./state";
+import { validateAndSanitizePrompt } from "./security";
 import {
   checkCompliance,
   editInteraction,
@@ -9,6 +10,38 @@ import {
   scheduleFollowup,
   searchApprovedMaterials,
 } from "./tools";
+
+export const memoryCheckpointer = new MemorySaver();
+
+async function securityGuardNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
+  const check = validateAndSanitizePrompt(state.message);
+  if (!check.isSafe) {
+    return {
+      is_safe: false,
+      intent: "security_reject",
+      security_violation: check.reason,
+    };
+  }
+
+  return {
+    is_safe: true,
+    message: check.sanitized,
+  };
+}
+
+function routeAfterSecurity(state: AgentStateType): "security_reject" | "detect_intent" {
+  return state.is_safe === false ? "security_reject" : "detect_intent";
+}
+
+async function securityRejectNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
+  return {
+    response:
+      state.security_violation ||
+      "Security guardrail violation: Your request contains instructions that attempt to bypass safety and compliance guardrails.",
+    compliance_flags: ["Adversarial prompt injection attempt intercepted by security guardrail."],
+    tool_calls: ["security_guardrail_reject"],
+  };
+}
 
 async function detectIntentNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
   const message = (state.message || "").toLowerCase();
@@ -20,13 +53,23 @@ async function detectIntentNode(state: AgentStateType): Promise<Partial<AgentSta
     intent = "recommend";
   }
 
+  // Preserve multi-turn active draft from memory checkpointer
+  const mergedDraft = {
+    ...(state.current_draft || {}),
+    ...(state.interaction_patch || {}),
+  };
+
   return {
     intent,
+    current_draft: mergedDraft,
     tool_calls: [],
   };
 }
 
 function routeByIntent(state: AgentStateType): "log" | "edit" | "recommend" {
+  if (state.intent === "security_reject") {
+    return "log";
+  }
   return state.intent || "log";
 }
 
@@ -124,12 +167,19 @@ async function respondNode(state: AgentStateType): Promise<Partial<AgentStateTyp
 
 export function buildAgentGraph() {
   const workflow = new StateGraph(AgentStateAnnotation)
+    .addNode("security_guard", securityGuardNode)
+    .addNode("security_reject", securityRejectNode)
     .addNode("detect_intent", detectIntentNode)
     .addNode("log", logNode)
     .addNode("edit", editNode)
     .addNode("recommend", recommendNode)
     .addNode("respond", respondNode)
-    .addEdge(START, "detect_intent")
+    .addEdge(START, "security_guard")
+    .addConditionalEdges("security_guard", routeAfterSecurity, {
+      security_reject: "security_reject",
+      detect_intent: "detect_intent",
+    })
+    .addEdge("security_reject", END)
     .addConditionalEdges("detect_intent", routeByIntent, {
       log: "log",
       edit: "edit",
@@ -140,8 +190,23 @@ export function buildAgentGraph() {
     .addEdge("recommend", "respond")
     .addEdge("respond", END);
 
-  return workflow.compile();
+  const compiled = workflow.compile({ checkpointer: memoryCheckpointer });
+  return compiled;
 }
 
-export const hcpInteractionAgent = buildAgentGraph();
+const baseAgent = buildAgentGraph();
 
+export const hcpInteractionAgent = {
+  ...baseAgent,
+  invoke: async (input: any, config?: any) => {
+    const threadId = config?.configurable?.thread_id || input?.thread_id || "default-session";
+    const mergedConfig = {
+      ...config,
+      configurable: {
+        ...(config?.configurable || {}),
+        thread_id: threadId,
+      },
+    };
+    return baseAgent.invoke(input, mergedConfig);
+  },
+};
