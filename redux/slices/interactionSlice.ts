@@ -90,15 +90,19 @@ export const interactionSlice = createSlice({
     },
     applyAssistantDraft(
       state: InteractionState,
-      action: PayloadAction<Partial<InteractionDraft>>
+      action: PayloadAction<any>
     ) {
+      const p = action.payload || {};
       state.draft = {
         ...state.draft,
-        ...action.payload,
-        materials_shared:
-          action.payload.materials_shared ?? state.draft.materials_shared,
+        ...p,
+        attendees: Array.isArray(p.attendees) ? p.attendees.join(", ") : (p.attendees ?? state.draft.attendees),
+        topics_discussed: Array.isArray(p.topics_discussed) ? p.topics_discussed.join("\n") : (p.topics_discussed ?? state.draft.topics_discussed),
+        outcomes: Array.isArray(p.outcomes) ? p.outcomes.join("\n") : (p.outcomes ?? state.draft.outcomes),
+        follow_up_actions: Array.isArray(p.follow_up_actions) ? p.follow_up_actions.join("\n") : (p.follow_up_actions ?? state.draft.follow_up_actions),
+        materials_shared: p.materials_shared ?? state.draft.materials_shared,
         samples_distributed:
-          action.payload.samples_distributed ?? state.draft.samples_distributed,
+          p.samples_distributed ?? state.draft.samples_distributed,
       };
     },
     addMaterial(state: InteractionState, action: PayloadAction<string>) {
