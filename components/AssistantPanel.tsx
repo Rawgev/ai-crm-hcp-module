@@ -149,7 +149,7 @@ export function AssistantPanel() {
             <Bot size={19} /> Conversational Log
           </h2>
         </div>
-        <span className="model-pill">Groq llama-3.1-8b-instant</span>
+        <span className="model-pill">Groq AI Active</span>
       </header>
 
       <div className="quick-prompts">

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { computeDiff, recordAuditLog, listAuditLogs } from "@/server/services/audit.service";
 import { createInteraction, updateInteraction, getInteractionById } from "@/server/services/interaction.service";
 import { interactionCreateSchema } from "@/server/validation/interaction.schema";
+import { createFallbackAuditLog } from "@/server/services/fallback-db";
 
 describe("Phase 2: Database Hardening & Regulatory Audit Trail (FDA 21 CFR Part 11)", () => {
   describe("computeDiff helper", () => {
@@ -235,12 +236,12 @@ describe("Phase 2: Database Hardening & Regulatory Audit Trail (FDA 21 CFR Part 
       (process.env as any).NODE_ENV = originalEnv;
     });
 
-    it("throws descriptive fatal error in production if PostgreSQL is unreachable", async () => {
+    it("throws descriptive fatal error in production if PostgreSQL is unreachable", () => {
       (process.env as any).NODE_ENV = "production";
 
       // When in production, fallback SQLite is disabled to prevent split-brain data
-      await expect(
-        recordAuditLog({
+      expect(() => {
+        createFallbackAuditLog({
           entityType: "Interaction",
           entityId: "prod_fail_test",
           action: "CREATE",
@@ -248,8 +249,8 @@ describe("Phase 2: Database Hardening & Regulatory Audit Trail (FDA 21 CFR Part 
           userName: "Prod Rep",
           userRole: "REP",
           changes: {},
-        })
-      ).rejects.toThrow();
+        });
+      }).toThrow(/Production database connection failure/);
     });
   });
 });

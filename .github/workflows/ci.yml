@@ -48,6 +48,12 @@ jobs:
           DIRECT_URL: postgresql://crm_user:crm_password@localhost:5432/ai_crm?schema=public
         run: npx prisma migrate deploy
 
+      - name: Seed Database
+        env:
+          DATABASE_URL: postgresql://crm_user:crm_password@localhost:5432/ai_crm?schema=public
+          DIRECT_URL: postgresql://crm_user:crm_password@localhost:5432/ai_crm?schema=public
+        run: npm run prisma:seed
+
       - name: TypeScript Type Check
         run: npx tsc --noEmit
 
