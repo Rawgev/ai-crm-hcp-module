@@ -150,6 +150,21 @@ export async function createInteraction(
   const dateObj = new Date(payload.interaction_date);
 
   try {
+    let validUserId: string | null = null;
+    if (userId && userId !== "user_default_rep" && userId !== "user_system") {
+      try {
+        const userExists = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true },
+        });
+        if (userExists) {
+          validUserId = userExists.id;
+        }
+      } catch {
+        validUserId = null;
+      }
+    }
+
     const record = await prisma.interaction.create({
       data: {
         hcpId: payload.hcp_id,
@@ -169,7 +184,7 @@ export async function createInteraction(
         complianceFlags: complianceFlags,
         channel: payload.channel || "field_visit",
         consentForVoiceSummary: payload.consent_for_voice_summary || false,
-        createdById: userId !== "user_default_rep" && userId !== "user_system" ? userId : null,
+        createdById: validUserId,
       },
     });
 
@@ -245,6 +260,24 @@ export async function updateInteraction(
     });
 
     if (!existing) {
+      if (process.env.NODE_ENV !== "production") {
+        const fallbackBefore = getFallbackInteraction(Number(id));
+        if (fallbackBefore) {
+          const fallbackRecord = updateFallbackInteraction(Number(id), payload);
+          const diff = computeDiff(fallbackBefore, fallbackRecord);
+          await recordAuditLog({
+            entityType: "Interaction",
+            entityId: String(id),
+            action: "UPDATE",
+            userId,
+            userName,
+            userRole,
+            changes: diff,
+            ipAddress,
+          });
+          return fallbackRecord;
+        }
+      }
       throw new Error("NOT_FOUND");
     }
 
