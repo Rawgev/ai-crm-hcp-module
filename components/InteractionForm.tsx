@@ -1,20 +1,18 @@
 "use client";
 
-import React, { useMemo, useState, ChangeEvent, FormEvent } from "react";
+import React, { useState, ChangeEvent, FormEvent } from "react";
 import {
   History,
   Mic,
-  PackagePlus,
   RotateCcw,
   Save,
-  Search,
-  Send,
   Sparkles,
+  X,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
-  addMaterial,
-  addSample,
+  removeMaterial,
+  removeSample,
   resetDraft,
   saveInteraction,
   updateField,
@@ -36,39 +34,12 @@ const interactionTypes = [
   "Virtual Detail",
 ];
 
-const materials = [
-  "Product X efficacy brochure",
-  "Patient starter guide",
-  "Safety profile card",
-  "Reimbursement FAQ",
-];
-
-const samples = [
-  "Product X 5 mg starter",
-  "Product X 10 mg starter",
-  "Demo injection device",
-];
-
 export function InteractionForm() {
   const dispatch = useAppDispatch();
   const [showAuditModal, setShowAuditModal] = useState(false);
   const { draft, status, lastSaved, error } = useAppSelector(
     (state) => state.interaction
   );
-
-  const suggestedActions = useMemo(() => {
-    const base = [
-      "Schedule follow-up meeting in 2 weeks",
-      "Send Product X Phase III PDF",
-    ];
-    if (draft.sentiment === "Positive") {
-      return [...base, "Add Dr. Menon to advisory board invite list"];
-    }
-    if (draft.sentiment === "Negative") {
-      return [...base, "Route objection to medical information team"];
-    }
-    return [...base, "Confirm patient profile fit before next call"];
-  }, [draft.sentiment]);
 
   const setField =
     <K extends keyof InteractionDraft>(field: K) =>
@@ -176,21 +147,32 @@ export function InteractionForm() {
       <section className="subsection">
         <div className="subsection-title">
           <h3>Materials Shared</h3>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => dispatch(addMaterial(materials[0]))}
-          >
-            <Search size={15} /> Search/Add
-          </button>
         </div>
         <div className="chips">
           {draft.materials_shared.length ? (
             draft.materials_shared.map((item) => (
-              <span key={item}>{item}</span>
+              <span key={item} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                {item}
+                <button
+                  type="button"
+                  onClick={() => dispatch(removeMaterial(item))}
+                  title="Remove material"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    color: "#64748b",
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
             ))
           ) : (
-            <em>No materials added.</em>
+            <em>No materials referenced yet.</em>
           )}
         </div>
       </section>
@@ -198,21 +180,32 @@ export function InteractionForm() {
       <section className="subsection">
         <div className="subsection-title">
           <h3>Samples Distributed</h3>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => dispatch(addSample(samples[0]))}
-          >
-            <PackagePlus size={15} /> Add Sample
-          </button>
         </div>
         <div className="chips">
           {draft.samples_distributed.length ? (
             draft.samples_distributed.map((item) => (
-              <span key={item}>{item}</span>
+              <span key={item} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                {item}
+                <button
+                  type="button"
+                  onClick={() => dispatch(removeSample(item))}
+                  title="Remove sample"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    color: "#64748b",
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              </span>
             ))
           ) : (
-            <em>No samples added.</em>
+            <em>No samples distributed.</em>
           )}
         </div>
       </section>
@@ -254,25 +247,6 @@ export function InteractionForm() {
           rows={3}
         />
       </label>
-
-      <div className="suggestions">
-        <p>
-          <Sparkles size={15} /> AI suggested follow-ups
-        </p>
-        {suggestedActions.map((action) => (
-          <button
-            key={action}
-            type="button"
-            onClick={() =>
-              dispatch(
-                updateField({ field: "follow_up_actions", value: action })
-              )
-            }
-          >
-            {action}
-          </button>
-        ))}
-      </div>
 
       <footer className="form-actions">
         {error && <span className="error-text">{error}</span>}

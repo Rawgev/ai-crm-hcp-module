@@ -63,5 +63,15 @@ describe("AI Agent Tools", () => {
     expect(updated.hcp_name).toBe("Dr. Priya Menon");
     expect(updated.outcomes).toContain("safety profile data");
   });
+
+  it("updates HCP name without appending previous or arbitrary surnames", async () => {
+    const draft = {
+      hcp_name: "Dr. Arjun Shah",
+      topics_discussed: "Initial discussion on Product X",
+    };
+    const updated = await editInteraction("the name is raghav", draft);
+    expect(updated.hcp_name).toBe("Dr. Raghav");
+    expect(updated.hcp_name).not.toContain("Shah");
+  });
 });
 

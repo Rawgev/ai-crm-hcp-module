@@ -10,8 +10,9 @@ build/
 dist/
 .turbo/
 tsconfig.tsbuildinfo
+*.tsbuildinfo
 
-# Legacy Backups & Archives (Not needed in production Next.js repository)
+# Legacy Backups & Archives
 _original_backup/
 *_backup/
 *.zip
@@ -28,35 +29,31 @@ _original_backup/
 .env.production
 !.env.example
 
-# Databases & SQLite Runtime Data
+# Local SQLite / Temporary Databases
 *.db
 *.db-journal
 *.sqlite
 *.sqlite3
 *.sqlite-journal
 
-# Logs
+# Logs & Debug Output
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Test Coverage & Reports
+# Test Coverage, Playwright & Vitest Reports
 coverage/
 .nyc_output/
-
-# Python & Legacy Virtualenvs (if any remnants)
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-.venv/
-env/
+playwright-report/
+test-results/
+blob-report/
 
 # Editor & OS files
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
 *.swp
 *.swo
-.idea/

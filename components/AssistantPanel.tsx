@@ -2,86 +2,20 @@
 
 import React, { useState, FormEvent } from "react";
 import {
-  Bot,
-  ChevronDown,
-  ChevronUp,
-  ClipboardCheck,
   CornerDownLeft,
-  FileText,
   Loader2,
-  PencilLine,
-  Search,
   Sparkles,
-  UserSearch,
-  WandSparkles,
-  LucideIcon,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
-import { applyAssistantDraft, InteractionDraft } from "@/redux/slices/interactionSlice";
+import { applyAssistantDraft } from "@/redux/slices/interactionSlice";
 import {
   addUserMessage,
-  runAgentTool,
   sendAssistantMessage,
 } from "@/redux/slices/assistantSlice";
-
-const quickPrompts = [
-  "Met Dr. Menon, discussed Product X efficacy and safety profile. Positive response, wants Phase III data.",
-  "Edit the outcome: HCP asked for patient affordability information before prescribing.",
-  "Recommend compliant follow-up actions for a neutral HCP after a product discussion.",
-];
-
-interface SalesTool {
-  name: string;
-  label: string;
-  description: string;
-  Icon: LucideIcon;
-  fallback: (draft: InteractionDraft) => string;
-}
-
-const salesTools: SalesTool[] = [
-  {
-    name: "log_interaction",
-    label: "Log Interaction",
-    description: "Draft fields from a rep note",
-    Icon: FileText,
-    fallback: (draft) =>
-      draft.topics_discussed || "Met Dr. Menon, discussed Product X efficacy and safety.",
-  },
-  {
-    name: "edit_interaction",
-    label: "Edit Interaction",
-    description: "Change the current draft",
-    Icon: PencilLine,
-    fallback: () => "",
-  },
-  {
-    name: "fetch_hcp_profile",
-    label: "HCP Profile",
-    description: "Load specialty, tier, consent",
-    Icon: UserSearch,
-    fallback: (draft) => draft.hcp_name,
-  },
-  {
-    name: "search_approved_materials",
-    label: "Approved Materials",
-    description: "Find compliant content",
-    Icon: Search,
-    fallback: (draft) =>
-      draft.topics_discussed || draft.outcomes || "Product X efficacy and safety",
-  },
-  {
-    name: "recommend_followups",
-    label: "Recommend Follow-ups",
-    description: "Next-best compliant action",
-    Icon: ClipboardCheck,
-    fallback: () => "",
-  },
-];
 
 export function AssistantPanel() {
   const dispatch = useAppDispatch();
   const [message, setMessage] = useState("");
-  const [toolsOpen, setToolsOpen] = useState(false);
   const { messages, status } = useAppSelector((state) => state.assistant);
   const draft = useAppSelector((state) => state.interaction.draft);
 
@@ -105,36 +39,6 @@ export function AssistantPanel() {
     }
   };
 
-  const runSalesToolAction = async (tool: SalesTool) => {
-    const typedMessage = message.trim();
-    const toolMessage = typedMessage || tool.fallback(draft);
-
-    if (tool.name === "edit_interaction" && !typedMessage) {
-      setMessage("Edit the interaction: ");
-      return;
-    }
-
-    dispatch(addUserMessage(`${tool.label}: ${toolMessage || "use current draft"}`));
-    setMessage("");
-
-    const result = await dispatch(
-      runAgentTool({
-        toolName: tool.name,
-        message: toolMessage,
-        currentDraft: draft,
-      })
-    );
-
-    if (
-      runAgentTool.fulfilled.match(result) &&
-      result.payload.success !== false &&
-      result.payload.interaction_patch &&
-      Object.keys(result.payload.interaction_patch).length > 0
-    ) {
-      dispatch(applyAssistantDraft(result.payload.interaction_patch));
-    }
-  };
-
   const handleFormSubmit = (event: FormEvent) => {
     event.preventDefault();
     send();
@@ -144,56 +48,13 @@ export function AssistantPanel() {
     <aside className="assistant-panel">
       <header className="assistant-header">
         <div>
-          <p className="eyebrow">AI Assistant</p>
+          <p className="eyebrow">Clinical Documentation</p>
           <h2>
-            <Bot size={19} /> Conversational Log
+            <Sparkles size={18} /> Field Assistant
           </h2>
         </div>
-        <span className="model-pill">Groq AI Active</span>
+        <span className="model-pill">● Copilot Active</span>
       </header>
-
-      <div className="quick-prompts">
-        {quickPrompts.map((prompt) => (
-          <button key={prompt} type="button" onClick={() => send(prompt)}>
-            <WandSparkles size={14} />
-            {prompt}
-          </button>
-        ))}
-      </div>
-
-      <section className="sales-tools" aria-label="sales agent tools">
-        <button
-          className="sales-tools-toggle"
-          type="button"
-          onClick={() => setToolsOpen((open) => !open)}
-          aria-expanded={toolsOpen}
-        >
-          <span>
-            <Sparkles size={15} /> AI agent tools
-          </span>
-          <span>
-            {salesTools.length} tools{" "}
-            {toolsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </span>
-        </button>
-
-        {toolsOpen && (
-          <div className="sales-tool-grid">
-            {salesTools.map((tool) => (
-              <button
-                key={tool.name}
-                type="button"
-                onClick={() => runSalesToolAction(tool)}
-                disabled={status === "thinking"}
-                title={tool.name}
-              >
-                <tool.Icon size={15} />
-                <span>{tool.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
 
       <div className="message-list" aria-live="polite">
         {messages.map((item, index) => (
@@ -206,7 +67,7 @@ export function AssistantPanel() {
         ))}
         {status === "thinking" && (
           <div className="message assistant thinking">
-            <Loader2 size={16} /> Thinking with LangGraph.js...
+            <Loader2 size={16} /> Analyzing interaction details...
           </div>
         )}
       </div>
@@ -215,7 +76,7 @@ export function AssistantPanel() {
         <input
           value={message}
           onChange={(event) => setMessage(event.target.value)}
-          placeholder="Describe interaction or ask for help..."
+          placeholder="Type field notes, physician feedback, or clinical updates..."
         />
         <button
           className="primary-button icon-only"

@@ -47,7 +47,9 @@ async function detectIntentNode(state: AgentStateType): Promise<Partial<AgentSta
   const message = (state.message || "").toLowerCase();
   let intent: "log" | "edit" | "recommend" = "log";
 
-  if (["edit", "change", "update", "modify", "correct"].some((term) => message.includes(term))) {
+  const editRegex = /\b(edit|change|update|modify|correct|fix|switch to|replace|actually|instead|the hcp|the doctor|hcp name|doctor name|hcp was|doctor was|name was|name is|hcp is|doctor is|timing|time was|time is|scheduled at|\d{1,2}(?::\d{2})?\s*(?:am|pm))\b/i;
+
+  if (editRegex.test(message)) {
     intent = "edit";
   } else if (["recommend", "next best", "follow-up", "follow up"].some((term) => message.includes(term))) {
     intent = "recommend";
@@ -74,9 +76,25 @@ function routeByIntent(state: AgentStateType): "log" | "edit" | "recommend" {
 }
 
 async function logNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
-  const draftHcpName = (state.current_draft?.hcp_name as string) || "";
-  const profile = await fetchHcpProfile(draftHcpName);
-  const patch = await logInteraction(state.message, state.current_draft);
+  const msgLower = (state.message || "").toLowerCase();
+  let targetHcp = (state.current_draft?.hcp_name as string) || "";
+  if (msgLower.includes("arjun") || msgLower.includes("shah")) {
+    targetHcp = "Dr. Arjun Shah";
+  } else if (msgLower.includes("priya") || msgLower.includes("menon")) {
+    targetHcp = "Dr. Priya Menon";
+  } else {
+    const drMatch = state.message.match(/\b(?:Dr\.|Doctor)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b/i);
+    if (drMatch && drMatch[1]) {
+      targetHcp = `Dr. ${drMatch[1].trim()}`;
+    }
+  }
+
+  const profile = await fetchHcpProfile(targetHcp);
+  const patch = await logInteraction(state.message, {
+    ...(state.current_draft || {}),
+    hcp_id: profile.hcp_id,
+    hcp_name: profile.hcp_name,
+  });
 
   const topic = `${patch.topics_discussed || ""} ${state.message}`;
   const materials = searchApprovedMaterials(topic);

@@ -31,6 +31,21 @@ export interface InteractionState {
 const getTodayIso = () => new Date().toISOString().slice(0, 10);
 const getCurrentTime = () => new Date().toTimeString().slice(0, 5);
 
+function normalizeTimeString(rawTime: any): string | undefined {
+  if (!rawTime || typeof rawTime !== "string") return undefined;
+  const str = rawTime.trim();
+  const match12 = str.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (match12) {
+    let hours = parseInt(match12[1], 10);
+    const minutes = match12[2] || "00";
+    const ampm = match12[3]?.toLowerCase();
+    if (ampm === "pm" && hours < 12) hours += 12;
+    if (ampm === "am" && hours === 12) hours = 0;
+    return `${hours.toString().padStart(2, "0")}:${minutes.padStart(2, "0")}`;
+  }
+  return str.slice(0, 5);
+}
+
 export const initialDraft: InteractionDraft = {
   hcp_id: "hcp_1001",
   hcp_name: "Dr. Priya Menon",
@@ -93,9 +108,15 @@ export const interactionSlice = createSlice({
       action: PayloadAction<any>
     ) {
       const p = action.payload || {};
+      const rawTime = p.interaction_time ?? p.time ?? p.timing;
+      const normalizedTime = normalizeTimeString(rawTime);
+      const rawDate = p.interaction_date ?? p.date;
+
       state.draft = {
         ...state.draft,
         ...p,
+        interaction_time: normalizedTime ?? state.draft.interaction_time,
+        interaction_date: rawDate ?? state.draft.interaction_date,
         attendees: Array.isArray(p.attendees) ? p.attendees.join(", ") : (p.attendees ?? state.draft.attendees),
         topics_discussed: Array.isArray(p.topics_discussed) ? p.topics_discussed.join("\n") : (p.topics_discussed ?? state.draft.topics_discussed),
         outcomes: Array.isArray(p.outcomes) ? p.outcomes.join("\n") : (p.outcomes ?? state.draft.outcomes),
@@ -110,10 +131,20 @@ export const interactionSlice = createSlice({
         state.draft.materials_shared.push(action.payload);
       }
     },
+    removeMaterial(state: InteractionState, action: PayloadAction<string>) {
+      state.draft.materials_shared = state.draft.materials_shared.filter(
+        (m) => m !== action.payload
+      );
+    },
     addSample(state: InteractionState, action: PayloadAction<string>) {
       if (!state.draft.samples_distributed.includes(action.payload)) {
         state.draft.samples_distributed.push(action.payload);
       }
+    },
+    removeSample(state: InteractionState, action: PayloadAction<string>) {
+      state.draft.samples_distributed = state.draft.samples_distributed.filter(
+        (s) => s !== action.payload
+      );
     },
     resetDraft(state: InteractionState) {
       state.draft = {
@@ -142,8 +173,15 @@ export const interactionSlice = createSlice({
   },
 });
 
-export const { addMaterial, addSample, applyAssistantDraft, resetDraft, updateField } =
-  interactionSlice.actions;
+export const {
+  addMaterial,
+  removeMaterial,
+  addSample,
+  removeSample,
+  applyAssistantDraft,
+  resetDraft,
+  updateField,
+} = interactionSlice.actions;
 
 export default interactionSlice.reducer;
 

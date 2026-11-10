@@ -17,7 +17,6 @@ The application allows field representatives to log, review, enrich, and audit H
   - **Data Layer**: PostgreSQL with Prisma ORM, migrations, and strict referential constraints.
   - **Security Layer**: JWT-based session authentication with HttpOnly cookies, password hashing with bcrypt, role-based access guards (REP, MANAGER, COMPLIANCE_OFFICER, ADMIN).
 - **Human-in-the-Loop Principle**: The AI agent never persists records directly to the database. All AI-extracted fields are applied as a patch to the visible form draft, allowing the representative to inspect, edit, and approve before submission.
-- **Automated SQLite to PostgreSQL Migration**: Includes a migration utility (`scripts/migrate-sqlite-to-postgres.ts`) to import historical data from legacy SQLite databases without data loss.
 
 ---
 
@@ -179,9 +178,10 @@ Access the application at `http://localhost:3000`.
 
 ### 5.4 Local Development Setup
 
-1. **Start PostgreSQL**:
+1. **Configure Environment Variables**:
+   Set `DATABASE_URL` in `.env` to your PostgreSQL database (e.g., Supabase or local PostgreSQL):
    ```bash
-   docker compose up -d postgres
+   DATABASE_URL="postgresql://user:password@localhost:5432/ai_crm?schema=public"
    ```
 
 2. **Install Dependencies**:
@@ -195,15 +195,10 @@ Access the application at `http://localhost:3000`.
    npm run prisma:push
    ```
 
-4. **Seed Database or Migrate Legacy SQLite Data**:
-   - To seed fresh test data:
-     ```bash
-     npm run prisma:seed
-     ```
-   - To migrate existing data from legacy `test.db`:
-     ```bash
-     npm run db:migrate:sqlite
-     ```
+4. **Seed Database**:
+   ```bash
+   npm run prisma:seed
+   ```
 
 5. **Start Development Server**:
    ```bash

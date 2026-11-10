@@ -94,7 +94,7 @@ const initialState: AssistantState = {
     {
       role: "assistant",
       content:
-        "Tell me what happened with the HCP. I can draft the log, suggest compliant next steps, or edit the current record.",
+        "Ready to record clinical interaction. Type or paste your field notes, physician feedback, or discussion summary to auto-populate the structured record.",
     },
   ],
   status: "idle",

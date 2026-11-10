@@ -30,6 +30,20 @@ export interface FollowUpScheduleResult {
  * Fetch territory, specialty, consent, tier, and engagement context for an HCP.
  */
 export async function fetchHcpProfile(hcpName?: string): Promise<HCPProfileResult> {
+  const lowered = (hcpName || "").toLowerCase();
+  if (lowered.includes("arjun") || lowered.includes("shah") || lowered.includes("1002")) {
+    return {
+      hcp_id: "hcp_1002",
+      hcp_name: "Dr. Arjun Shah",
+      specialty: "Cardiology",
+      tier: "B",
+      organization: "Northline Hospital",
+      territory: "West Zone",
+      consent_status: "limited",
+      last_interaction: "Cardiology department outreach on Product X safety",
+    };
+  }
+
   return {
     hcp_id: "hcp_1001",
     hcp_name: hcpName || "Dr. Priya Menon",
@@ -163,7 +177,7 @@ export async function logInteraction(
         role: "system",
         content:
           "You are a life sciences CRM assistant. Extract a compliant interaction draft as strict JSON. " +
-          "Fields: hcp_name, interaction_type, attendees, topics_discussed, materials_shared, " +
+          "Fields: hcp_id, hcp_name, interaction_type, interaction_date (YYYY-MM-DD), interaction_time (HH:MM 24-hr format, e.g. '11:00' for 11 am), attendees, topics_discussed, materials_shared, " +
           "samples_distributed, sentiment, outcomes, follow_up_actions, ai_summary, extracted_entities. " +
           "Use only Positive, Neutral, or Negative for sentiment. Do not invent sample distribution.",
       },
@@ -213,7 +227,14 @@ export async function editInteraction(
         role: "system",
         content:
           "You edit an HCP interaction draft. Return the full updated draft as strict JSON, preserving fields " +
-          "not mentioned in the instruction. Keep promotional language compliant and factual.",
+          "not mentioned in the instruction. " +
+          "If the instruction specifies or changes the HCP or physician name (e.g. 'the name is Raghav' or 'the doctor is Dr. Priya'), " +
+          "update hcp_name to the exact name requested (e.g. 'Dr. Raghav' or 'Dr. Priya') formatted with 'Dr.' prefix. " +
+          "CRITICAL: Never retain, blend, or append previous surnames. If the user specifies 'raghav', the name is strictly 'Dr. Raghav', NOT 'Dr. Raghav Shah'. " +
+          "Only use the surname 'Shah' if the user explicitly writes 'Shah' or 'Arjun'. " +
+          "If the instruction specifies or edits the time (e.g. 'timing was 11 am' or 'the timing was 11:00'), set interaction_time to '11:00' (HH:MM 24-hr format). " +
+          "Do not overwrite topics_discussed unless the instruction explicitly directs to change the topics. " +
+          "Keep promotional language compliant and factual.",
       },
       {
         role: "user",
@@ -223,6 +244,14 @@ export async function editInteraction(
 
     const updated = extractJsonFromText(ladderResult.content);
     if (updated && Object.keys(updated).length > 0) {
+      // Guardrail: if instruction did not mention 'shah', ensure 'Shah' wasn't accidentally retained or appended
+      const instLower = instruction.toLowerCase();
+      if (!instLower.includes("shah") && typeof updated.hcp_name === "string") {
+        const nameVal = updated.hcp_name as string;
+        if (/\bshah\b/i.test(nameVal)) {
+          updated.hcp_name = nameVal.replace(/\s+shah\b/gi, "").trim();
+        }
+      }
       return updated;
     }
     return currentDraft;

@@ -68,32 +68,17 @@ describe("Phase 5: End-to-End Testing & CI/CD Pipeline Configuration", () => {
       expect(content).toContain("npm test");
       expect(content).toContain("npm run build");
       expect(content).toContain("npx playwright test");
-      expect(content).toContain("docker/build-push-action");
     });
   });
 
-  describe("5.3 Production Containerization & Scripts", () => {
-    it("has multi-stage Dockerfile with non-root security runner", () => {
-      const dockerfilePath = resolve(rootDir, "Dockerfile");
-      expect(existsSync(dockerfilePath)).toBe(true);
+  describe("5.3 Production Deployment & Scripts", () => {
+    it("has next.config.mjs configured for server external packages", () => {
+      const nextConfigPath = resolve(rootDir, "next.config.mjs");
+      expect(existsSync(nextConfigPath)).toBe(true);
 
-      const content = readFileSync(dockerfilePath, "utf-8");
-      expect(content).toContain("FROM node:20-alpine AS base");
-      expect(content).toContain("FROM base AS deps");
-      expect(content).toContain("FROM base AS builder");
-      expect(content).toContain("FROM base AS runner");
-      expect(content).toContain("USER nextjs");
-      expect(content).toContain("EXPOSE 3000");
-    });
-
-    it("has docker-compose.yml configuring coordinated service topology", () => {
-      const composePath = resolve(rootDir, "docker-compose.yml");
-      expect(existsSync(composePath)).toBe(true);
-
-      const content = readFileSync(composePath, "utf-8");
-      expect(content).toContain("ai-crm-postgres");
-      expect(content).toContain("ai-crm-nextjs");
-      expect(content).toContain("service_healthy");
+      const content = readFileSync(nextConfigPath, "utf-8");
+      expect(content).toContain("serverComponentsExternalPackages");
+      expect(content).toContain("@prisma/client");
     });
 
     it("package.json contains test:e2e script and Playwright dependency", () => {

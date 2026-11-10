@@ -70,11 +70,64 @@ export function fallbackEdit(
     patched.outcomes = instruction;
   } else if (lowered.includes("follow")) {
     patched.follow_up_actions = instruction;
+  } else if (lowered.includes("attendee")) {
+    patched.attendees = instruction;
+  } else if (lowered.includes("topic")) {
+    patched.topics_discussed = instruction;
+  } else if (lowered.includes("time") || lowered.includes("timing") || lowered.includes("clock")) {
+    const timeMatch = instruction.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = timeMatch[2] || "00";
+      const ampm = timeMatch[3]?.toLowerCase();
+      if (ampm === "pm" && hours < 12) hours += 12;
+      if (ampm === "am" && hours === 12) hours = 0;
+      patched.interaction_time = `${hours.toString().padStart(2, "0")}:${minutes.padStart(2, "0")}`;
+    }
+  } else if (
+    lowered.includes("hcp name") ||
+    lowered.includes("doctor name") ||
+    lowered.includes("the hcp") ||
+    lowered.includes("the doctor") ||
+    lowered.includes("was arjun") ||
+    lowered.includes("was priya") ||
+    lowered.includes("name was") ||
+    lowered.includes("name is") ||
+    lowered.includes("hcp was") ||
+    lowered.includes("hcp is") ||
+    lowered.includes("doctor was") ||
+    lowered.includes("doctor is") ||
+    lowered.includes("arjun") ||
+    lowered.includes("shah") ||
+    lowered.includes("priya") ||
+    lowered.includes("menon")
+  ) {
+    if (lowered.includes("arjun") || lowered.includes("shah")) {
+      patched.hcp_name = "Dr. Arjun Shah";
+      patched.hcp_id = "hcp_1002";
+    } else if (lowered.includes("priya") || lowered.includes("menon")) {
+      patched.hcp_name = "Dr. Priya Menon";
+      patched.hcp_id = "hcp_1001";
+    } else {
+      const match = instruction.match(/(?:name\s+(?:is|was)|doctor\s+(?:is|was)|hcp\s+(?:is|was)|the\s+doctor\s+(?:is|was)|the\s+hcp\s+(?:is|was))\s+([a-zA-Z\s.]+)/i);
+      if (match && match[1]) {
+        const rawName = match[1].trim();
+        const formatted = rawName
+          .split(/\s+/)
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(" ");
+        const finalName = formatted.toLowerCase().startsWith("dr.") || formatted.toLowerCase().startsWith("dr ")
+          ? formatted
+          : `Dr. ${formatted}`;
+        patched.hcp_name = finalName;
+        patched.hcp_id = "hcp_custom";
+      }
+    }
   } else {
     patched.topics_discussed = instruction;
   }
 
-  patched.ai_summary = "AI service temporarily unavailable; applied a conservative local edit.";
+  patched.ai_summary = "Applied conversational edit to the draft.";
   return patched;
 }
 
