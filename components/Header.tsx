@@ -80,8 +80,9 @@ export function Header() {
         {currentUser && (
           <span style={{ background: "#f0fdf4", borderColor: "#bbf7d0", color: "#166534" }}>
             <User size={15} color="#166534" />
-            <strong>{currentUser.name}</strong>
+            <strong className="user-name">{currentUser.name}</strong>
             <span
+              className="badge"
               style={{
                 fontSize: "11px",
                 background: "#dcfce7",

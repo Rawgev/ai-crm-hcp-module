@@ -4,7 +4,7 @@ test.describe("Authentication & Session Guards (E2E)", () => {
   test("redirects unauthenticated visitor from root to /login", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.locator("h1")).toContainText("Sign in to AI CRM");
+    await expect(page.locator("h1")).toContainText("Authorized Sign In");
   });
 
   test("displays validation error on invalid credentials", async ({ page }) => {
@@ -33,8 +33,8 @@ test.describe("Authentication & Session Guards (E2E)", () => {
     await expect(page.locator(".user-name")).toContainText("Alex Vance");
 
     // CRM screen elements should be visible
-    await expect(page.locator("text=HCP Interaction Logging")).toBeVisible();
-    await expect(page.locator("text=AI Sales Assistant")).toBeVisible();
+    await expect(page.locator("text=HCP Interaction Hub")).toBeVisible();
+    await expect(page.locator("text=Field Assistant")).toBeVisible();
   });
 
   test("signs out securely and clears session cookie", async ({ page }) => {
@@ -52,4 +52,3 @@ test.describe("Authentication & Session Guards (E2E)", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 });
-

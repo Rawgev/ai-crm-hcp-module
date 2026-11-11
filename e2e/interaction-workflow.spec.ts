@@ -11,23 +11,23 @@ test.describe("AI Assistant & CRM Interaction Workflow (E2E)", () => {
   });
 
   test("populates interaction fields via AI Assistant and saves record", async ({ page }) => {
-    const assistantInput = page.locator('input[placeholder*="Type a note or instruction"]');
+    const assistantInput = page.locator('input[placeholder*="Type field notes"]');
     await expect(assistantInput).toBeVisible();
 
-    // Type conversation note into AI Sales Assistant
+    // Type conversation note into AI Assistant
     const note = "Met Dr. Menon, discussed Product X efficacy and tolerability. Positive response, wants Phase III data.";
     await assistantInput.fill(note);
     await page.keyboard.press("Enter");
 
     // Wait for AI Assistant response in message stream
-    await expect(page.locator(".assistant-message").last()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(".message.assistant").last()).toBeVisible({ timeout: 15000 });
 
     // Verify form fields automatically updated
-    const topicsField = page.locator('textarea[placeholder*="Topics covered"]');
+    const topicsField = page.locator('textarea[placeholder*="Enter key discussion points"]');
     await expect(topicsField).not.toBeEmpty();
 
-    const sentimentSelect = page.locator("select").first();
-    await expect(sentimentSelect).toHaveValue("Positive");
+    const positiveRadio = page.locator('input[name="sentiment"][value="Positive"]');
+    await expect(positiveRadio).toBeChecked();
 
     // Save interaction
     const saveButton = page.locator('button:has-text("Log Interaction")');
@@ -52,15 +52,14 @@ test.describe("AI Assistant & CRM Interaction Workflow (E2E)", () => {
   });
 
   test("edits an existing draft via conversational instruction", async ({ page }) => {
-    const assistantInput = page.locator('input[placeholder*="Type a note or instruction"]');
+    const assistantInput = page.locator('input[placeholder*="Type field notes"]');
     await assistantInput.fill("Edit the outcome: HCP requested patient starter guide and financial assistance details.");
     await page.keyboard.press("Enter");
 
     // Assistant confirms draft update
-    await expect(page.locator(".assistant-message").last()).toContainText("updated the interaction draft", { timeout: 15000 });
+    await expect(page.locator(".message.assistant").last()).toContainText("updated the interaction draft", { timeout: 15000 });
 
     const outcomesField = page.locator('textarea[placeholder*="Key outcomes or agreements"]');
     await expect(outcomesField).toHaveValue(/patient starter guide/);
   });
 });
-

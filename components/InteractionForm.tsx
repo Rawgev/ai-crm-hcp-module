@@ -250,6 +250,23 @@ export function InteractionForm() {
 
       <footer className="form-actions">
         {error && <span className="error-text">{error}</span>}
+        {lastSaved?.compliance_flags && lastSaved.compliance_flags.length > 0 && (
+          <div
+            className="compliance-banner"
+            style={{
+              width: "100%",
+              background: "#fffbeb",
+              border: "1px solid #fef3c7",
+              color: "#b45309",
+              padding: "10px 14px",
+              borderRadius: "6px",
+              fontSize: "13px",
+              marginBottom: "10px",
+            }}
+          >
+            <strong>Compliance Attention:</strong> {lastSaved.compliance_flags.join(" ")}
+          </div>
+        )}
         {lastSaved && (
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <span className="success-text">Saved interaction #{lastSaved.id}</span>

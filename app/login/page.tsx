@@ -82,6 +82,7 @@ function LoginForm() {
 
       {error && (
         <div
+          className="error-banner"
           style={{
             display: "flex",
             alignItems: "center",
