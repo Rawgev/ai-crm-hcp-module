@@ -11,7 +11,7 @@ test.describe("AI Assistant & CRM Interaction Workflow (E2E)", () => {
   });
 
   test("populates interaction fields via AI Assistant and saves record", async ({ page }) => {
-    const assistantInput = page.locator('input[placeholder*="Type field notes"]');
+    const assistantInput = page.locator('[placeholder*="Type field notes"]');
     await expect(assistantInput).toBeVisible();
 
     // Type conversation note into AI Assistant
@@ -52,7 +52,7 @@ test.describe("AI Assistant & CRM Interaction Workflow (E2E)", () => {
   });
 
   test("edits an existing draft via conversational instruction", async ({ page }) => {
-    const assistantInput = page.locator('input[placeholder*="Type field notes"]');
+    const assistantInput = page.locator('[placeholder*="Type field notes"]');
     await assistantInput.fill("Edit the outcome: HCP requested patient starter guide and financial assistance details.");
     await page.keyboard.press("Enter");
 
