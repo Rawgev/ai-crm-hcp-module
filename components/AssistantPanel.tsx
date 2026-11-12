@@ -76,6 +76,7 @@ export function AssistantPanel() {
   const send = async (text: string = message) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+
     dispatch(addUserMessage(trimmed));
     setMessage("");
 

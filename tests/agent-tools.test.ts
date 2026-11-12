@@ -73,5 +73,14 @@ describe("AI Agent Tools", () => {
     expect(updated.hcp_name).toBe("Dr. Raghav");
     expect(updated.hcp_name).not.toContain("Shah");
   });
+
+  it("extracts full HCP name with surname without truncating or hallucinating", async () => {
+    const draft = {
+      hcp_name: "Dr. Arjun Shah",
+      topics_discussed: "Initial discussion on Product X",
+    };
+    const updated = await editInteraction("the doctor is Raghav Chauhan", draft);
+    expect(updated.hcp_name).toBe("Dr. Raghav Chauhan");
+  });
 });
 

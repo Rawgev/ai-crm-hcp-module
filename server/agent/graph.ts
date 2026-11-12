@@ -47,9 +47,11 @@ async function detectIntentNode(state: AgentStateType): Promise<Partial<AgentSta
   const message = (state.message || "").toLowerCase();
   let intent: "log" | "edit" | "recommend" = "log";
 
-  const editRegex = /\b(edit|change|update|modify|correct|fix|switch to|replace|actually|instead|the hcp|the doctor|hcp name|doctor name|hcp was|doctor was|name was|name is|hcp is|doctor is|timing|time was|time is|scheduled at|\d{1,2}(?::\d{2})?\s*(?:am|pm))\b/i;
+  const explicitEditRegex = /\b(edit|change|update|modify|correct|fix|switch to|replace|actually|instead)\b/i;
+  const nameEditRegex = /\b(?:the\s+doctor|the\s+hcp|doctor\s+name|hcp\s+name|doctor|hcp|name)\s+(?:is|was|should be|changed to|set to)\b/i;
+  const timeEditRegex = /\b(?:timing|time|scheduled)\s+(?:was|is|to|at)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/i;
 
-  if (editRegex.test(message)) {
+  if (explicitEditRegex.test(message) || nameEditRegex.test(message) || timeEditRegex.test(message)) {
     intent = "edit";
   } else if (["recommend", "next best", "follow-up", "follow up"].some((term) => message.includes(term))) {
     intent = "recommend";
@@ -85,7 +87,14 @@ async function logNode(state: AgentStateType): Promise<Partial<AgentStateType>> 
   } else {
     const drMatch = state.message.match(/\b(?:Dr\.|Doctor)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b/i);
     if (drMatch && drMatch[1]) {
-      targetHcp = `Dr. ${drMatch[1].trim()}`;
+      const raw = drMatch[1].trim();
+      const formatted = raw
+        .split(/\s+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+      targetHcp = formatted.toLowerCase().startsWith("dr.") || formatted.toLowerCase().startsWith("dr ")
+        ? formatted
+        : `Dr. ${formatted}`;
     }
   }
 

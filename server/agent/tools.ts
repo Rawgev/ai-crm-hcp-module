@@ -179,6 +179,7 @@ export async function logInteraction(
           "You are a life sciences CRM assistant. Extract a compliant interaction draft as strict JSON. " +
           "Fields: hcp_id, hcp_name, interaction_type, interaction_date (YYYY-MM-DD), interaction_time (HH:MM 24-hr format, e.g. '11:00' for 11 am), attendees, topics_discussed, materials_shared, " +
           "samples_distributed, sentiment, outcomes, follow_up_actions, ai_summary, extracted_entities. " +
+          "Always extract the full physician name provided (e.g. 'the doctor Raghav Chauhan' -> 'Dr. Raghav Chauhan') formatted with 'Dr.' prefix. Do not blend surnames from previous doctors. " +
           "Use only Positive, Neutral, or Negative for sentiment. Do not invent sample distribution.",
       },
       {
@@ -189,6 +190,9 @@ export async function logInteraction(
 
     const patch = extractJsonFromText(ladderResult.content);
     if (patch && Object.keys(patch).length > 0) {
+      if (typeof patch.hcp_name === "string" && !note.toLowerCase().includes("shah") && /\bshah\b/i.test(patch.hcp_name as string)) {
+        patch.hcp_name = (patch.hcp_name as string).replace(/\s+shah\b/gi, "").trim();
+      }
       if (ladderResult.tier === "secondary") {
         patch.ai_summary = `${patch.ai_summary || "HCP discussion processed"} (via secondary model)`;
       }
@@ -228,9 +232,9 @@ export async function editInteraction(
         content:
           "You edit an HCP interaction draft. Return the full updated draft as strict JSON, preserving fields " +
           "not mentioned in the instruction. " +
-          "If the instruction specifies or changes the HCP or physician name (e.g. 'the name is Raghav' or 'the doctor is Dr. Priya'), " +
-          "update hcp_name to the exact name requested (e.g. 'Dr. Raghav' or 'Dr. Priya') formatted with 'Dr.' prefix. " +
-          "CRITICAL: Never retain, blend, or append previous surnames. If the user specifies 'raghav', the name is strictly 'Dr. Raghav', NOT 'Dr. Raghav Shah'. " +
+          "If the instruction specifies or changes the HCP or physician name (e.g. 'the doctor Raghav Chauhan' or 'the name is Raghav' or 'the doctor is Dr. Priya'), " +
+          "update hcp_name to the full exact name requested (including both first and any last names provided, e.g. 'Dr. Raghav Chauhan' or 'Dr. Raghav') formatted with 'Dr.' prefix. " +
+          "CRITICAL: Never retain, blend, or append surnames from previous drafts. Only include surnames explicitly provided in the user's instruction. " +
           "Only use the surname 'Shah' if the user explicitly writes 'Shah' or 'Arjun'. " +
           "If the instruction specifies or edits the time (e.g. 'timing was 11 am' or 'the timing was 11:00'), set interaction_time to '11:00' (HH:MM 24-hr format). " +
           "Do not overwrite topics_discussed unless the instruction explicitly directs to change the topics. " +

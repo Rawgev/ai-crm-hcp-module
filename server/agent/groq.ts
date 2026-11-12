@@ -43,6 +43,30 @@ export function fallbackExtract(
     sentiment = "Negative";
   }
 
+  let hcpName = (currentDraft?.hcp_name as string) || "";
+  let hcpId = (currentDraft?.hcp_id as string) || "";
+
+  if (lowered.includes("arjun") || lowered.includes("shah")) {
+    hcpName = "Dr. Arjun Shah";
+    hcpId = "hcp_1002";
+  } else if (lowered.includes("priya") || lowered.includes("menon")) {
+    hcpName = "Dr. Priya Menon";
+    hcpId = "hcp_1001";
+  } else {
+    const drMatch = note.match(/\b(?:Dr\.|Doctor)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\b/i);
+    if (drMatch && drMatch[1]) {
+      const raw = drMatch[1].trim();
+      const formatted = raw
+        .split(/\s+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+      hcpName = formatted.toLowerCase().startsWith("dr.") || formatted.toLowerCase().startsWith("dr ")
+        ? formatted
+        : `Dr. ${formatted}`;
+      hcpId = "hcp_custom";
+    }
+  }
+
   const patch: Record<string, unknown> = {
     topics_discussed: note,
     sentiment,
@@ -51,6 +75,11 @@ export function fallbackExtract(
     materials_shared: [] as string[],
     samples_distributed: [] as string[],
   };
+
+  if (hcpName) {
+    patch.hcp_name = hcpName;
+    patch.hcp_id = hcpId || "hcp_1001";
+  }
 
   if (lowered.includes("phase iii") || lowered.includes("phase 3")) {
     patch.materials_shared = ["Product X Phase III data PDF"];
@@ -109,9 +138,10 @@ export function fallbackEdit(
       patched.hcp_name = "Dr. Priya Menon";
       patched.hcp_id = "hcp_1001";
     } else {
-      const match = instruction.match(/(?:name\s+(?:is|was)|doctor\s+(?:is|was)|hcp\s+(?:is|was)|the\s+doctor\s+(?:is|was)|the\s+hcp\s+(?:is|was))\s+([a-zA-Z\s.]+)/i);
+      const match = instruction.match(/(?:name\s+(?:is|was)|doctor\s+(?:is|was)|hcp\s+(?:is|was)|the\s+doctor\s+(?:is|was)|the\s+hcp\s+(?:is|was)|(?:Dr\.|Doctor)\s+)([a-zA-Z\s.]+)/i);
       if (match && match[1]) {
-        const rawName = match[1].trim();
+        let rawName = match[1].trim();
+        rawName = rawName.replace(/\s+(told|said|mentioned|noted|stated|asked|that|who|was|is)\b[\s\S]*/i, "").trim();
         const formatted = rawName
           .split(/\s+/)
           .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
@@ -122,6 +152,9 @@ export function fallbackEdit(
         patched.hcp_name = finalName;
         patched.hcp_id = "hcp_custom";
       }
+    }
+    if (lowered.includes("told me") || lowered.includes("discussed") || lowered.includes("patient") || lowered.includes("positive")) {
+      patched.topics_discussed = instruction;
     }
   } else {
     patched.topics_discussed = instruction;

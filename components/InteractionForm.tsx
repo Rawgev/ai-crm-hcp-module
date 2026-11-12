@@ -3,7 +3,6 @@
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import {
   History,
-  Mic,
   RotateCcw,
   Save,
   Sparkles,
@@ -132,16 +131,6 @@ export function InteractionForm() {
           placeholder="Enter key discussion points..."
           rows={5}
         />
-      </label>
-
-      <label className="voice-consent">
-        <input
-          type="checkbox"
-          checked={draft.consent_for_voice_summary}
-          onChange={setField("consent_for_voice_summary")}
-        />
-        <Mic size={15} />
-        Summarize from voice note
       </label>
 
       <section className="subsection">

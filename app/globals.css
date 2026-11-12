@@ -268,25 +268,6 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
-.voice-consent {
-  display: inline-flex;
-  width: fit-content;
-  grid-template-columns: none;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: var(--surface-soft);
-  padding: 8px 10px;
-  color: #344054;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.voice-consent input {
-  width: auto;
-}
-
 .subsection {
   border: 1px solid var(--line);
   border-radius: 8px;
